@@ -45,3 +45,17 @@ terraform.rc
 
 TODO.md
 NOTES.md
+
+# Local build caches and artifacts
+.cache/
+services/app/.cache/
+services/simulator/.cache/
+services/app/frontend/node_modules/
+services/app/frontend/dist/
+services/app/bin/
+services/simulator/bin/
+reports/
+coverage.out
+*.test
+.DS_Store
+.env

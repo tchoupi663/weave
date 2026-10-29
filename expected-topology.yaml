@@ -1,0 +1,58 @@
+# Expected Topology for the healthy v1 Target App.
+# The benchmark tool compares Weave's inferred graph against this set.
+# The Source IP is a placeholder; the comparator treats any non-cluster IP as this node.
+
+nodes:
+  - id: source-ip
+    kind: external-client
+    label: Source IP
+  - id: frontend
+    kind: frontend
+    label: Frontend
+  - id: api-gateway
+    kind: gateway
+    label: API Gateway
+  - id: auth
+    kind: service
+    label: Auth
+  - id: catalog
+    kind: service
+    label: Catalog
+  - id: orders
+    kind: service
+    label: Orders
+  - id: payment
+    kind: service
+    label: Payment
+  - id: external-payment-provider
+    kind: external-service
+    label: External Payment Provider
+  - id: postgres
+    kind: database
+    label: Postgres
+
+edges:
+  - from: source-ip
+    to: frontend
+    protocol: HTTPS
+  - from: frontend
+    to: api-gateway
+    protocol: HTTP
+  - from: api-gateway
+    to: auth
+    protocol: HTTP
+  - from: api-gateway
+    to: catalog
+    protocol: HTTP
+  - from: api-gateway
+    to: orders
+    protocol: HTTP
+  - from: api-gateway
+    to: payment
+    protocol: HTTP
+  - from: payment
+    to: external-payment-provider
+    protocol: HTTPS
+  - from: orders
+    to: postgres
+    protocol: TCP

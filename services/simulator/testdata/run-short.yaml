@@ -1,0 +1,13 @@
+run:
+  id: integration
+  seed: 7
+  target: https://localhost:8443
+  expected_topology: ../../expected-topology.yaml
+  duration: 12s
+  concurrency: 20
+  ramp: 1s
+  think_time: {min: 10ms, max: 50ms}
+  mix: {bounce: 30, browse: 50, order: 20}
+  accounts: {pool: 2000}
+  reset: true
+  tls: {insecure_skip_verify: true}

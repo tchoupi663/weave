@@ -1,0 +1,129 @@
+name: weave-target
+
+x-app: &app
+  build:
+    context: ./services/app
+  image: weave-target-app:dev
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: weave
+      POSTGRES_PASSWORD: weave
+      POSTGRES_DB: weave
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weave -d weave"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  auth:
+    <<: *app
+    command: ["/app/auth"]
+    environment:
+      PORT: "8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  catalog:
+    <<: *app
+    command: ["/app/catalog"]
+    environment:
+      PORT: "8082"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  orders:
+    <<: *app
+    command: ["/app/orders"]
+    environment:
+      PORT: "8083"
+      DATABASE_URL: postgres://weave:weave@postgres:5432/weave?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  external:
+    <<: *app
+    command: ["/app/external"]
+    environment:
+      PORT: "8443"
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-qO-", "https://localhost:8443/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  payment:
+    <<: *app
+    command: ["/app/payment"]
+    environment:
+      PORT: "8084"
+      EXTERNAL_URL: https://external:8443
+      EXTERNAL_INSECURE: "true"
+    depends_on:
+      external:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  gateway:
+    <<: *app
+    command: ["/app/gateway"]
+    environment:
+      PORT: "8080"
+      AUTH_URL: http://auth:8081
+      CATALOG_URL: http://catalog:8082
+      ORDERS_URL: http://orders:8083
+      PAYMENT_URL: http://payment:8084
+    depends_on:
+      auth:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+      payment:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  frontend:
+    build:
+      context: ./services/app/frontend
+    image: weave-target-frontend:dev
+    restart: unless-stopped
+    ports:
+      - "8443:443"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-ksf", "https://localhost/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  pgdata:
