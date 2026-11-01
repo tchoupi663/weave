@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: orders
+  name: orders
+spec:
+  ports:
+  - name: http
+    port: 8083
+    protocol: TCP
+    targetPort: 8083
+  selector:
+    app: orders
+  sessionAffinity: None
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: orders
+  name: orders
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: orders
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: postgres:17-alpine
+          command:
+          - sh
+          - -c
+          - |
+            until pg_isready -h postgres -p 5432 -t 5; do
+              echo "Waiting for PostgreSQL..."
+              sleep 2
+            done
+            echo "PostgreSQL is ready"
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "128Mi", cpu: "100m" }
+      containers:
+      - image: weave-target-app:dev
+        imagePullPolicy: IfNotPresent
+        name: weave-target-app
+        command: ["/app/orders"]
+        env:
+        - name: DATABASE_URL
+          value: postgres://weave:weave@localhost:5432/weave
+        ports:
+        - containerPort: 8083
+          protocol: TCP
+        resources: 
+          requests:
+            cpu: "100m"
+            memory: "250Mi"
+          limits:
+            cpu: "250m"
+            memory: "500Mi"
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      terminationGracePeriodSeconds: 30
+

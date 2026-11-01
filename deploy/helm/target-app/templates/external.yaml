@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: external
+  name: external
+spec:
+  ports:
+  - name: 80-8443
+    port: 80
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: external
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: external
+  name: external
+spec:
+  selector:
+    matchLabels:
+      app: external
+  template:
+    metadata:
+      labels:
+        app: external
+    spec:
+      containers:
+      - image: weave-target-app:dev
+        imagePullPolicy: IfNotPresent
+        name: weave-target-app
+        command: ["/app/external"]
+        ports:
+        - containerPort: 8443
+          protocol: TCP
+        resources: 
+          requests:
+            cpu: "100m"
+            memory: "250Mi"
+          limits:
+            cpu: "250m"
+            memory: "500Mi"
