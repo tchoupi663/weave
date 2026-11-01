@@ -6,8 +6,8 @@ metadata:
   name: catalog
 spec:
   ports:
-  - name: 80-8082
-    port: 80
+  - name: http
+    port: 8082
     protocol: TCP
     targetPort: 8082
   selector:
@@ -44,4 +44,15 @@ spec:
           limits:
             cpu: "250m"
             memory: "500Mi"
-
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 443
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 443
+          initialDelaySeconds: 10
+          periodSeconds: 10

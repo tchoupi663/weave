@@ -39,7 +39,7 @@ spec:
     spec:
       initContainers:
         - name: wait-for-db
-          image: postgres:17-alpine
+          image: postgres:17
           command:
           - sh
           - -c
@@ -70,7 +70,16 @@ spec:
           limits:
             cpu: "250m"
             memory: "500Mi"
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-      terminationGracePeriodSeconds: 30
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 443
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 443
+          initialDelaySeconds: 10
+          periodSeconds: 10
 

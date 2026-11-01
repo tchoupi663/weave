@@ -35,7 +35,7 @@ spec:
         imagePullPolicy: IfNotPresent
         name: gateway
         command: ["/app/gateway"]
-        port:
+        ports:
         - containerPort: 8080
         resources:
           requests:
