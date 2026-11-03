@@ -6,7 +6,7 @@ metadata:
   name: payment
 spec:
   ports:
-  - name: 80-8084
+  - name: http
     port: 8084
     protocol: TCP
     targetPort: 8084
@@ -32,9 +32,17 @@ spec:
       - image: weave-target-app:dev
         imagePullPolicy: IfNotPresent
         name: weave-target-app
-        command: ["/app/catalog"]
+        command: ["/app/payment"]       
+        env:
+          - name: PORT
+            value: "8084"
+          - name: EXTERNAL_URL
+            value: https://external:8443 # 
+          - name: EXTERNAL_INSECURE
+            value: "true"
         ports:
         - containerPort: 8084
+          name: http
           protocol: TCP
         resources:
           requests:
@@ -46,12 +54,12 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 443
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 443
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10

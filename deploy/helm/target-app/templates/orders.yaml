@@ -58,10 +58,16 @@ spec:
         name: weave-target-app
         command: ["/app/orders"]
         env:
-        - name: DATABASE_URL
-          value: postgres://weave:weave@localhost:5432/weave
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-secret
+                key: password
+          - name: DATABASE_URL
+            value: postgres://weave:$(POSTGRES_PASSWORD)@postgres:5432/weave?sslmode=disable
         ports:
         - containerPort: 8083
+          name: http
           protocol: TCP
         resources: 
           requests:
@@ -73,13 +79,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 443
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 443
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10
 

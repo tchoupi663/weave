@@ -35,8 +35,20 @@ spec:
         imagePullPolicy: IfNotPresent
         name: gateway
         command: ["/app/gateway"]
+        env:
+          - name: PORT
+            value: "8080"
+          - name: AUTH_URL
+            value: http://auth:8081
+          - name: CATALOG_URL
+            value: http://catalog:8082
+          - name: ORDERS_URL
+            value: http://orders:8083
+          - name: PAYMENT_URL
+            value: http://payment:8084
         ports:
         - containerPort: 8080
+          name: http
         resources:
           requests:
             cpu: "100m"
@@ -47,12 +59,12 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10

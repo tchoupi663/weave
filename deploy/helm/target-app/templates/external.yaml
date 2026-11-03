@@ -36,6 +36,7 @@ spec:
         command: ["/app/external"]
         ports:
         - containerPort: 8443
+          name: http
           protocol: TCP
         resources: 
           requests:
@@ -47,12 +48,12 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 443
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 443
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10
