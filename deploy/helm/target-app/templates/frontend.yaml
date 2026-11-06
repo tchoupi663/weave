@@ -36,7 +36,7 @@ spec:
         name: frontend
         ports:
         - containerPort: 443
-          name: http
+          name: https
         resources: 
           requests:
             cpu: "100m"
@@ -47,13 +47,15 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: http
+            port: https
+            scheme: HTTPS
           initialDelaySeconds: 10
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: http
+            port: https
+            scheme: HTTPS
           initialDelaySeconds: 10
           periodSeconds: 10
 
