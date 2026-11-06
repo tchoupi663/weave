@@ -18,7 +18,7 @@ sim run --config run.yaml --report report.json
 
 ## YAML
 
-```yaml
+```yaml 
 run:
   id: auto
   seed: 42
