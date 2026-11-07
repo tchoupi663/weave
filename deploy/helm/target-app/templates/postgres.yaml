@@ -6,12 +6,15 @@ metadata:
     app: postgres
 spec:
   type: ClusterIP
+  # Headless: gives the StatefulSet stable per-Pod DNS (postgres-0.postgres).
   clusterIP: None
-  ports:
-    - port: 5432
-      name: postgres
   selector:
     app: postgres
+  ports:
+    - name: postgres
+      port: {{ .Values.postgres.port }}
+      targetPort: postgres
+      protocol: TCP
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -20,8 +23,15 @@ metadata:
   labels:
     app: postgres
 spec:
-  serviceName: "postgres"
-  replicas: 1
+  serviceName: postgres
+  replicas: {{ .Values.postgres.replicas }}
+  selector:
+    matchLabels:
+      app: postgres
+  persistentVolumeClaimRetentionPolicy:
+    # Testbed choice: uninstalling the StatefulSet discards the database.
+    whenDeleted: Delete
+    whenScaled: Retain
   template:
     metadata:
       labels:
@@ -29,65 +39,53 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:17
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 5432
-              name: postgres
+            - name: postgres
+              containerPort: {{ .Values.postgres.port }}
           env:
             - name: POSTGRES_PASSWORD
-              valueFrom: 
+              valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
+                  name: {{ .Values.postgres.secretName }}
                   key: password
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.credentials.user | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.credentials.database | quote }}
+            # Subdirectory of the mount, so the volume root stays writable.
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
-            - name: POSTGRES_USER
-              value: weave
-            - name: POSTGRES_DB
-              value: weave
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
           resources:
-            requests:
-              cpu: "250m"
-              memory: "500Mi"
-            limits:
-              cpu: "500m"
-              memory: "1Gi"
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
           readinessProbe:
             exec:
               command:
                 - pg_isready
-                - -U  
-                - postgres
+                - -U
+                - {{ .Values.postgres.credentials.user | quote }}
             initialDelaySeconds: 5
             periodSeconds: 10
-          livenessProbe:  
+          livenessProbe:
             exec:
               command:
                 - pg_isready
-                - -U  
-                - postgres
+                - -U
+                - {{ .Values.postgres.credentials.user | quote }}
             initialDelaySeconds: 10
             periodSeconds: 30
-  persistentVolumeClaimRetentionPolicy:
-    whenDeleted: Delete     
-    whenScaled: Retain
-  selector:
-    matchLabels:
-      app: postgres
   volumeClaimTemplates:
     - metadata:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        # storageClassName: fast-ssd 
+        {{- with .Values.postgres.storage.className }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
         resources:
           requests:
-            storage: 10Gi
-  
-
-
-
-
+            storage: {{ .Values.postgres.storage.size }}

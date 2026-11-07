@@ -1,26 +1,27 @@
 apiVersion: v1
 kind: Service
 metadata:
+  name: external
   labels:
     app: external
-  name: external
 spec:
-  ports:
-  - name: http
-    port: 8443
-    protocol: TCP
-    targetPort: 8443
+  type: ClusterIP
   selector:
     app: external
-  type: ClusterIP
+  ports:
+    - name: https
+      port: {{ .Values.services.external.port }}
+      targetPort: https
+      protocol: TCP
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: external
   labels:
     app: external
-  name: external
 spec:
+  replicas: {{ .Values.services.external.replicas | default 1 }}
   selector:
     matchLabels:
       app: external
@@ -30,30 +31,34 @@ spec:
         app: external
     spec:
       containers:
-      - image: weave-target-app:dev
-        imagePullPolicy: IfNotPresent
-        name: weave-target-app
-        command: ["/app/external"]
-        ports:
-        - containerPort: 8443
-          name: http
-          protocol: TCP
-        resources: 
-          requests:
-            cpu: "100m"
-            memory: "250Mi"
-          limits:
-            cpu: "250m"
-            memory: "500Mi"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: http
-          initialDelaySeconds: 10
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: http
-          initialDelaySeconds: 10
-          periodSeconds: 10
+        - name: external
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.services.external.command | nindent 12 }}
+          ports:
+            - name: https
+              containerPort: {{ .Values.services.external.port }}
+          env:
+            - name: PORT
+              value: {{ .Values.services.external.port | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: https
+              {{- if .Values.services.external.tls }}
+              scheme: HTTPS
+              {{- end }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: https
+              {{- if .Values.services.external.tls }}
+              scheme: HTTPS
+              {{- end }}
+            initialDelaySeconds: 10
+            periodSeconds: 10

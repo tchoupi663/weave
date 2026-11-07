@@ -1,11 +1,79 @@
 resources:
-  requests: { cpu: 100m, memory: 250Mi }
-  limits: { cpu: 250m, memory: 500Mi }
+  requests:
+    cpu: 100m
+    memory: 250Mi
+  limits:
+    cpu: 250m
+    memory: 500Mi
+
+image:
+  repository: weave-target-app
+  tag: dev
+  pullPolicy: IfNotPresent
+
+services:
+  auth:
+    port: 8081
+    command: ["/app/auth"]
+  catalog:
+    port: 8082
+    command: ["/app/catalog"]
+  orders:
+    port: 8083
+    command: ["/app/orders"]
+  payment:
+    port: 8084
+    command: ["/app/payment"]
+    env:
+      EXTERNAL_URL: https://external:8443
+      EXTERNAL_INSECURE: "true"
+  external:
+    port: 8443
+    command: ["/app/external"]
+    # Serves its own self-signed TLS certificate.
+    tls: true
+  gateway:
+    port: 8080
+    command: ["/app/gateway"]
+    env:
+      AUTH_URL: http://auth:8081
+      CATALOG_URL: http://catalog:8082
+      ORDERS_URL: http://orders:8083
+      PAYMENT_URL: http://payment:8084
 
 frontend:
-  image: { imageName: weave-target-frontend, tag: dev }
-  port: 8000 #inside cluster (other pods)
-  nodePort: 30443 #outside cluster (cluster or ext)
-  containerPort: 443 #inside pod
-
+  image:
+    repository: weave-target-frontend
+    tag: dev
   replicas: 1
+  # Service port, reachable inside the cluster as frontend:<port>.
+  port: 8000
+  # Where nginx listens in the Pod. Declared as port "https" in the Deployment,
+  # which is what the Service targetPort and both probes reference.
+  containerPort: 443
+  # ClusterIP keeps the chart valid for any cluster. The kind environment sets
+  # NodePort in deploy/local/values.yaml, together with frontend.nodePort.
+  type: ClusterIP
+
+postgres:
+  image:
+    repository: postgres
+    tag: "17"
+  port: 5432
+  replicas: 1
+  secretName: postgres-secret
+
+  # Development only.
+  credentials:
+    user: weave
+    database: weave
+  storage:
+    size: 10Gi
+    className: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 500Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
