@@ -62,6 +62,7 @@ postgres:
   port: 5432
   replicas: 1
   secretName: postgres-secret
+  password: weave
 
   # Development only.
   credentials:
