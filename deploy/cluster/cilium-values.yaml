@@ -1,0 +1,26 @@
+# Cilium values for the kind cluster.
+# Installed by deploy/cluster/bootstrap.sh with:
+#   helm upgrade --install cilium oci://quay.io/cilium/charts/cilium \
+#     --version <pinned> -n kube-system -f deploy/cluster/cilium-values.yaml
+
+# Must match the kind cluster name: kind-<name>.
+cluster:
+  name: kind-kind
+
+# kind allocates one podCIDR per node, so Cilium must use Kubernetes IPAM.
+ipam:
+  mode: kubernetes
+
+# Single-node operator is enough for a local cluster.
+operator:
+  replicas: 1
+
+# Tunnel mode needs no routing support from the Docker network.
+routingMode: tunnel
+tunnelProtocol: vxlan
+
+hubble:
+  relay:
+    enabled: true
+  ui:
+    enabled: true

@@ -1,7 +1,0 @@
-USER-SUPPLIED VALUES:
-cluster: { name: kind-kind }
-hubble: { relay: { enabled: true }, ui: { enabled: true } }
-ipam: { mode: kubernetes }
-operator: { replicas: 1 }
-routingMode: tunnel
-tunnelProtocol: vxlan

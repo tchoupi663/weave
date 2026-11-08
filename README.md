@@ -6,7 +6,8 @@ Weave is a topology testbed: a dummy e-commerce **Target App** and a **Simulator
 
 - `services/app/` — the Target App: Vite frontend behind NGINX, API Gateway, Auth, Catalog, Orders (Postgres), Payment, and the External Payment Provider.
 - `services/simulator/` — the CLI that runs the Bounce, Browse, and Order Journeys and writes a JSON report with the Expected Topology.
-- `compose.yaml` — local Docker Compose stack for the Target App. No Kubernetes manifests.
+- `compose.yaml` — local Docker Compose stack for the Target App.
+- `deploy/` — Kubernetes: Helm chart, kind cluster + Cilium bootstrap, Argo CD applications, per-environment values. See [deploy/README.md](deploy/README.md).
 - `expected-topology.yaml` — the expected nodes and edges used by the inference benchmark.
 - `scripts/integration-test.sh` — unit tests, frontend build, Compose, contract checks, and a short Simulator run.
 
@@ -85,6 +86,5 @@ Manual checks:
 
 ## Not included
 
-- Kubernetes manifests for the kind deployment. The existing Helm scaffolding is untouched.
 - Fault injection (container crash and saturation) — the next iteration.
 - Weave's graph UI and the benchmark comparison tool. The Simulator emits the ground truth; a separate tool compares it to Weave's `/api/topology` and `/api/telemetry`.

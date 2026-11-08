@@ -52,7 +52,7 @@ frontend:
   # which is what the Service targetPort and both probes reference.
   containerPort: 443
   # ClusterIP keeps the chart valid for any cluster. The kind environment sets
-  # NodePort in deploy/local/values.yaml, together with frontend.nodePort.
+  # NodePort in deploy/envs/local/values.yaml, together with frontend.nodePort.
   type: ClusterIP
 
 postgres:

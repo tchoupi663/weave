@@ -1,0 +1,29 @@
+# kind cluster for the Weave Target App.
+#
+#   kind create cluster --config deploy/cluster/kind.yaml
+#
+# The CNI is disabled because Cilium is installed immediately after the
+# cluster is created (see bootstrap.sh). Kind's default kindnet must not be
+# present, or two CNIs fight over /etc/cni/net.d.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kind
+networking:
+  disableDefaultCNI: true
+  # kubeProxyMode: "none"   # only with Cilium kubeProxyReplacement=true
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.37.0
+    # Publish the frontend NodePort to the host. Requires the kind cluster to
+    # be recreated; mapping is applied at node creation only.
+    # extraPortMappings:
+    #   - containerPort: 30443
+    #     hostPort: 8443
+    #     listenAddress: "127.0.0.1"
+    #     protocol: TCP
+  - role: worker
+    image: kindest/node:v1.37.0
+  - role: worker
+    image: kindest/node:v1.37.0
+  - role: worker
+    image: kindest/node:v1.37.0

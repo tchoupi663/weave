@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: target-app-local
+  namespace: argocd
+spec:
+  project: default
+  # Two sources: the chart, and a reference to the repo so valueFiles can point
+  # outside the chart directory (deploy/envs/...).
+  sources:
+    - repoURL: https://github.com/tchoupi663/weave.git
+      targetRevision: main
+      path: deploy/charts/target-app
+      helm:
+        valueFiles:
+          - $values/deploy/envs/local/values.yaml
+    - repoURL: https://github.com/tchoupi663/weave.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weave
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    # Manual sync on purpose: review the diff before applying.
+    # Add self-heal only when the app is boring, and remember that it will
+    # revert manual changes you make during fault-injection experiments.
+    #   automated:
+    #     prune: true
+    #     selfHeal: true
