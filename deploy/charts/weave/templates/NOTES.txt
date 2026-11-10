@@ -1,0 +1,11 @@
+Weave is running in namespace {{ .Release.Namespace }}.
+
+Open the topology screen from your machine:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "weave.fullname" . }} 8090:{{ .Values.service.port }}
+
+Then open http://127.0.0.1:8090
+
+Weave watches namespace {{ .Values.config.watchNamespace | quote }} through
+{{ .Values.config.hubbleRelayAddr }}. It does not query the Kubernetes API and
+does not modify the Target App.

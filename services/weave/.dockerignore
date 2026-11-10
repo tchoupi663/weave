@@ -1,0 +1,6 @@
+.cache
+web/node_modules
+web/dist
+*.test
+.DS_Store
+README.md

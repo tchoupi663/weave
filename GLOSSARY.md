@@ -1,11 +1,11 @@
 # Weave Testbed
 
-The dummy Target App under observation and the Simulator that drives it. Weave consumes the resulting network activity; the service that displays the graph is out of scope here.
+The dummy Target App under observation, the Simulator that drives it, and Weave — the app that turns the resulting Hubble flows into an observed topology.
 
 ## Language
 
 **Weave**:
-The topology builder that observes the Target App's network activity and infers its nodes and edges. Weave is the consumer of the Simulator's traffic, not part of the Target App.
+The topology builder that observes the Target App's network activity and infers its nodes and edges. The Weave app runs in `weave-system`, follows Hubble Relay, and serves the operator screen. It is the consumer of the Simulator's traffic, not part of the Target App.
 _Avoid_: topology service, graph service.
 
 **Target App**:
@@ -17,7 +17,7 @@ The service that generates real traffic by having simulated Users execute Journe
 _Avoid_: loadgen, bot, synthetic traffic generator, user simulator.
 
 **Source IP**:
-The laptop's network address as observed by Weave. All Simulator traffic shares this external source; Weave displays the IP rather than a named user population.
+The external boundary of the observed topology. All non-cluster traffic entering the exposed Frontend collapses into one Source IP node; the Simulator's laptop is the intended source. When the Frontend is reached through a local port-forward, Hubble reports the kind host endpoint instead, and Weave shows that observed address in the inspector.
 _Avoid_: ext users, External Users, external clients, simulator node.
 
 **User**:
@@ -73,5 +73,25 @@ The dummy downstream service that Payment calls. It is part of the Target App fi
 _Avoid_: External, external service, external users.
 
 **Topology**:
-The graph of nodes and edges inferred by Weave from observed network activity. The Simulator is not a node; its traffic appears as the laptop's Source IP.
+The graph of nodes and edges inferred by Weave from observed network activity. The Simulator is not a node; its traffic appears as the Source IP boundary.
 _Avoid_: graph, map, diagram.
+
+**Node**:
+A logical Kubernetes workload (Deployment, StatefulSet, or DaemonSet) that appeared in at least one qualifying flow, or the single Source IP boundary node. Pods and IP addresses are evidence attached to a node, not nodes themselves.
+_Avoid_: pod node, service node, host.
+
+**Edge**:
+One ordered workload pair plus destination port. Replies and handshake packets fold into the request-direction edge. A new workload or port creates a new edge.
+_Avoid_: flow, connection, link.
+
+**Connection**:
+A counted non-reply TCP SYN observation on an edge. It is an L4 observation, not an HTTP request; long-lived connections can carry many requests with no new connection.
+_Avoid_: request, transaction, session.
+
+**Event**:
+A unique non-reply L4 flow observation after deduplication. Events are the activity unit on the graph and ribbon; they are not bytes or requests.
+_Avoid_: packet, request, message.
+
+**Activity Window**:
+The five-minute rolling set of 60 event buckets on each edge and on the whole graph. Cumulative node and edge totals are kept separately since Weave started or was reset.
+_Avoid_: history, retention, time series.

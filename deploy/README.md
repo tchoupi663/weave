@@ -9,7 +9,7 @@ exist.
 | `cluster/` | day 0 — before any GitOps | kind cluster definition, CNI (Cilium) values, `bootstrap.sh` |
 | `gitops/` | day 1 — the deployer | Argo CD values (later), Application definitions |
 | `platform/` | day 2+ — cluster addons | ingress, observability, secret management (empty for now) |
-| `charts/` | the app itself | `target-app/` Helm chart, environment-neutral defaults |
+| `charts/` | the apps | `target-app/` and `weave/` Helm charts, environment-neutral defaults |
 | `envs/` | the app's environments | one values file per environment, deltas only |
 
 ## Order of operations
@@ -24,6 +24,23 @@ kubectl apply -f deploy/gitops/apps/target-app-local.yaml
 2. **Argo CD.** Installed by the same bootstrap script, after Cilium is healthy.
 3. **Applications.** Argo CD renders `charts/target-app` with
    `envs/<env>/values.yaml` and applies the result.
+
+## Weave app
+
+`charts/weave` is the observed-topology app. It is deployed separately from the
+Target App, into `weave-system`, and watches the Target App's namespace through
+Hubble Relay:
+
+```bash
+docker build -t weave-app:dev -f services/weave/Dockerfile services/weave
+kind load docker-image weave-app:dev --name kind
+helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace
+kubectl -n weave-system port-forward svc/weave 8090:8080
+```
+
+The chart needs no Kubernetes API permissions. It reads only the Target App's
+observed flows, plus its own pod metadata from Hubble. It does not install
+network policies, mutate the Target App, or read the expected topology.
 
 ## Rendering without a cluster
 
@@ -45,6 +62,8 @@ in length, defaults have leaked out of the chart.
   `platform/<addon>/values.yaml`, installed either by `bootstrap.sh` or, once
   trusted, by its own Argo CD Application.
 - A new app chart: `charts/<name>/`.
+- Weave is a second chart with its own release: `helm upgrade --install weave
+  deploy/charts/weave -n weave-system`. It is not part of the Target App chart.
 
 ## Two rules
 

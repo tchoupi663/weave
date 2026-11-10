@@ -1,0 +1,6 @@
+apiVersion: v2
+name: weave
+description: Weave observed topology, constructed from Hubble Relay flows.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

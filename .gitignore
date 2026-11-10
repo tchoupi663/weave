@@ -59,3 +59,16 @@ coverage.out
 *.test
 .DS_Store
 .env
+
+# Weave app
+services/weave/.cache/
+services/weave/web/node_modules/
+services/weave/web/dist/
+services/weave/bin/
+
+# Impeccable runtime output
+.impeccable/review/
+.impeccable/questions/
+.impeccable/mocks/
+.impeccable/live/
+.impeccable/config.local.json
