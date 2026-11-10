@@ -8,7 +8,7 @@ exist.
 |---|---|---|
 | `cluster/` | day 0 — before any GitOps | kind cluster definition, CNI (Cilium) values, `bootstrap.sh` |
 | `gitops/` | day 1 — the deployer | Argo CD values (later), Application definitions |
-| `platform/` | day 2+ — cluster addons | ingress, observability, secret management (empty for now) |
+| `platform/` | day 2+ — cluster addons | ingress, observability (Beyla), secret management |
 | `charts/` | the apps | `target-app/` and `weave/` Helm charts, environment-neutral defaults |
 | `envs/` | the app's environments | one values file per environment, deltas only |
 
@@ -41,6 +41,25 @@ kubectl -n weave-system port-forward svc/weave 8090:8080
 The chart needs no Kubernetes API permissions. It reads only the Target App's
 observed flows, plus its own pod metadata from Hubble. It does not install
 network policies, mutate the Target App, or read the expected topology.
+
+Weave also exposes `POST /v1/traces` for OTLP HTTP/protobuf spans. Install the
+Beyla platform addon after Weave so the spans have a receiver:
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update grafana
+helm upgrade --install beyla grafana/beyla \
+  --namespace beyla-system --create-namespace \
+  --version 1.16.17 \
+  -f deploy/platform/observability/beyla-values.yaml
+```
+
+Beyla instruments only the `gateway` process. Its client spans cover Gateway →
+Auth/Catalog/Orders/Payment; its server spans cover Frontend → Gateway. It is
+a privileged eBPF DaemonSet and does not insert a proxy into the Target App.
+Weave attaches those spans to the matching L4 edges. See
+`deploy/platform/observability/README.md` and
+`docs/adr/0004-l7-observability.md`.
 
 ## Rendering without a cluster
 

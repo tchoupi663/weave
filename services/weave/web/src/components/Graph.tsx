@@ -355,11 +355,12 @@ export function Graph({
                   ) : null}
                   <text x={labelX} y={labelY} className="edge-label" textAnchor="middle" aria-hidden="true">
                     {edge.protocol} · {edge.port}
+                    {edge.l7 ? <tspan className="edge-l7"> · L7</tspan> : null}
                   </text>
                   <path
                     d={path}
                     className="edge-hit"
-                    aria-label={`${source?.name ?? 'Unknown'} to ${target?.name ?? 'Unknown'}, ${edge.protocol} port ${edge.port}`}
+                    aria-label={`${source?.name ?? 'Unknown'} to ${target?.name ?? 'Unknown'}, ${edge.protocol} port ${edge.port}${edge.l7 ? ', HTTP observed' : ''}`}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(event) => {

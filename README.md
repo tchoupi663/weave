@@ -2,8 +2,10 @@
 
 Weave is a topology testbed and the observed topology app that accompanies it.
 A dummy e-commerce **Target App** generates real HTTP traffic through a
-**Simulator**; Weave follows Cilium Hubble flows and constructs a live
-workload-level map of what actually crossed the network.
+**Simulator**; Weave follows Cilium Hubble L4 flows, consumes HTTP spans from
+Grafana Beyla, and constructs a live workload-level map of what actually
+crossed the network. Beyla uses eBPF and does not insert a proxy into
+the Target App.
 
 ## What is here
 
@@ -49,7 +51,8 @@ The Frontend is the only published service. Everything else is internal to the C
 ## Run Weave (kind + Hubble)
 
 Weave runs in `weave-system` and watches the Target App in `weave`. It needs
-the in-cluster Hubble Relay; it does not query the Kubernetes API. This path
+the in-cluster Hubble Relay for L4 and a Beyla DaemonSet for HTTP L7; it does
+not query the Kubernetes API. This path
 assumes the Target App chart is installed in `weave` and Cilium has Hubble
 enabled, as described in [deploy/README.md](deploy/README.md).
 
@@ -59,6 +62,19 @@ kind load docker-image weave-app:dev --name kind
 helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace
 kubectl -n weave-system rollout status deploy/weave --timeout=120s
 kubectl -n weave-system port-forward svc/weave 8090:8080
+```
+
+Install the Beyla observer once Weave is reachable. It instruments only the
+`gateway` process and sends OTLP traces to Weave; gateway client spans cover
+the four downstream edges, and gateway server spans cover Frontend → Gateway:
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update grafana
+helm upgrade --install beyla grafana/beyla \
+  --namespace beyla-system --create-namespace \
+  --version 1.16.17 \
+  -f deploy/platform/observability/beyla-values.yaml
 ```
 
 Open <http://127.0.0.1:8090>. The screen is live; it will show an empty state
@@ -79,13 +95,19 @@ Weave exposes:
 | `GET /api/topology` | Cumulative snapshot plus 60 activity buckets |
 | `GET /api/stream` | SSE snapshots every second |
 | `POST /api/reset` | Clear Weave's observed graph; not the Target App |
+| `POST /v1/traces` | OTLP HTTP/protobuf receiver for Beyla |
 | `GET /health` | Liveness and Relay status |
 
-The graph shows **connections** (TCP opens) and **events** (observed L4 flows),
-not requests, bytes, or latency. See [the Weave contract](docs/weave-contract.md)
-and [ADR-0003](docs/adr/0003-observed-topology.md).
+The graph shows **connections** (TCP opens) and **events** (observed L4 flows).
+Edges that carry HTTP spans also show **requests**, **status classes**,
+**p50/p95 with its latency source**, and **normalized routes**. L4 and L7 remain separate; they
+are never summed. See [the Weave contract](docs/weave-contract.md),
+[ADR-0003](docs/adr/0003-observed-topology.md), and
+[ADR-0004](docs/adr/0004-l7-observability.md).
 
 ![Weave topology screen](docs/images/weave-topology.png)
+
+![Weave L7 edge inspector](docs/images/weave-l7-inspector.png)
 
 ## Run the Simulator
 
@@ -117,7 +139,8 @@ Weave's own tests:
 
 The Weave integration script builds the image, deploys the chart, port-forwards
 the app, runs the short Simulator config, and asserts that the constructed
-graph is exactly 9 nodes and 8 edges. It does not tear down the Target App;
+graph is exactly 9 nodes and 8 edges, that the five HTTP edges carry L7
+observations, and that the L4-only edges do not. It does not tear down the Target App;
 the Simulator resets its own test data as part of the run.
 
 Manual checks:
@@ -135,6 +158,13 @@ Manual checks:
 - NGINX proxies `/api/*` and `/admin/reset` to the Gateway.
 - The Simulator talks only to the Frontend. Source IP is the external boundary; through a local port-forward, Hubble reports the host endpoint. Weave displays the observed address, not a named `ext users` node.
 - Weave groups pods into workloads, creates edges only from observed traffic, and folds replies into one ordered edge.
+- L7 coverage is five of eight edges: `Frontend → Gateway` and
+  `Gateway → Auth/Catalog/Orders/Payment`. `Source IP → Frontend` HTTPS,
+  `Payment → External Payment Provider` HTTPS, and `Orders → Postgres` TCP stay
+  L4-only.
+- L7 requests, status, and latency come from Beyla gateway client and server
+  spans. Four edges are client-observed; Frontend → Gateway is server-observed.
+  The UI labels the source. Headers, query strings, and bodies are discarded.
 - Kubelet probes from the host to non-Frontend workloads are excluded. The Source IP observed through a port-forward is the host endpoint; the inspector says so.
 - The expected topology is in [expected-topology.yaml](expected-topology.yaml).
 
@@ -149,11 +179,13 @@ Manual checks:
 - [ADR-0001: real traffic only](docs/adr/0001-real-traffic-only.md)
 - [ADR-0002: HTTP client, not browser](docs/adr/0002-http-client-not-browser.md)
 - [ADR-0003: observed topology](docs/adr/0003-observed-topology.md)
+- [ADR-0004: L7 observability](docs/adr/0004-l7-observability.md)
 
 ## Not included
 
 - Fault injection (container crash and saturation) — the next iteration.
-- L7 request, latency, and status telemetry. v1 is L4-only.
+- The Cilium L7 visibility policy. It was rejected because its Envoy proxy
+  added a measurable latency regression; see ADR-0004.
 - The benchmark comparison tool. The Simulator emits the ground truth; a
   separate tool compares it to Weave's `/api/topology`.
 - A supported phone layout. Weave is designed for 1024px and wider.

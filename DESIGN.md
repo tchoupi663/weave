@@ -1,7 +1,9 @@
 # Weave design
 
 Weave is an operator screen for one question: what did the network actually do?
-The design is a working instrument first and an atmosphere second.
+The design is a working instrument first and an atmosphere second. L4 topology
+and L7 HTTP evidence share one surface; they are read together, never added
+together.
 
 ## World
 
@@ -63,10 +65,12 @@ interface does not load a font from a third-party host.
 
 ## Composition
 
-- 52px top bar: wordmark, `Topology`, namespace and counts, live state, pause,
-  clear.
+- 52px top bar: wordmark, `Topology`, namespace and counts (including the
+  number of L7-bearing edges), live state, pause, clear.
 - Full-bleed flat graph stage. No grid, no column rule, no decorative layer.
-- Plain legend at bottom left: role dots and the L4 note, with no container.
+- Plain legend at bottom left: role dots and the observation note. When any
+  edge has L7, the note reads `L4 + L7 observations`; otherwise `L4
+  observations`.
 - Zoom control at bottom right: a compact graphite pill with −, the live
   percentage, +, and fit. Zoom runs from a hard 50% floor (twice the fitted
   extent) to 300%; fit is 100%. The wheel zooms at the pointer; `+`, `-`, and
@@ -98,7 +102,8 @@ glints. A hover or selection adds one thin ring around the dot.
 
 **Edges** are straight 1px hairlines between dot rims, with no arrowheads. At
 fit and above, every thread carries a quiet `protocol · port` title at its
-midpoint in the muted text role. Focusing a knot narrows the visible titles to
+midpoint in the muted text role. An edge with HTTP evidence appends `· L7` in
+the signal-blue accent. Focusing a knot narrows the visible titles to
 its own threads, and below 90% the resting titles hide so a wide view stays
 clean. Hovering or selecting an edge brings its title to full contrast.
 
@@ -139,11 +144,17 @@ The inspector is a flat graphite column with a hairline, not a card. It shows:
 - node: role, display name, kind, namespace, connections, events, last seen,
   observed pods, addresses, first observed, connected edges;
 - edge: endpoints, protocol, port, connections, events, last seen, five-minute
-  activity, first observed, last observed, request direction.
+  L4 activity, first observed, last observed, request direction;
+- edge with L7: an HTTP block with requests, responses, cumulative status
+  classes, cumulative p50/p95, five-minute request sparkline, and up to five
+  normalized routes. The block names the latency source (`client` or `server`)
+  and says that headers, query strings, and bodies are discarded;
+- edge without L7: footer copy says `L4 only` and names HTTPS/Postgres as not
+  L7-visible.
 
 The connected-edge list is a clean text list with a protocol line, no chevrons
-or arrows. Footer copy states the L4 limitation. There are no invented requests,
-latency, bytes, or status figures.
+or arrows. There are no invented requests, latency, bytes, or status figures.
+L7 figures are rendered only when the snapshot contains them.
 
 ## States
 
@@ -190,7 +201,12 @@ it snaps straight back to its seed position and its neighbours stay put.
 
 - Desktop-first. The working layout is designed for 1024px and wider. The graph
   remains zoomable on a phone but is not a supported operator layout in v1.
-- L4 only. Connections and events are observations, not requests.
+- L7 covers only the five HTTP edges observed through Frontend and Gateway
+  client spans. Source IP → Frontend, Orders → Postgres, and Payment → External
+  Payment Provider stay L4-only.
+- Four L7 edges are client-observed; Frontend → Gateway is server-observed.
+  The inspector labels the latency source per edge. Neither is Cilium proxy
+  latency.
 - The source address seen through the local port-forward is the host endpoint,
   not the Simulator laptop. The inspector says so.
 
@@ -198,5 +214,6 @@ it snaps straight back to its seed position and its neighbours stay put.
 
 `docs/images/weave-topology.png` is a screenshot captured from the in-cluster
 Weave app at 1440×900 during a 20-second Simulator smoke run (38 Bounce, 73
-Browse, and 23 Order journeys, zero failures). It is not a generated image. The
-favicon and the wordmark glyph are authored SVG, no external raster.
+Browse, and 23 Order journeys, zero failures). `docs/images/weave-l7-inspector.png`
+is the same surface with the HTTP block selected. They are not generated images.
+The favicon and the wordmark glyph are authored SVG, no external raster.

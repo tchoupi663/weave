@@ -1,6 +1,6 @@
 # ADR-0003: Construct topology from observed flows, not declarations
 
-- **Status:** Accepted
+- **Status:** Accepted (L4 decision; L7 added in ADR-0004)
 - **Date:** 2026-11-09
 - **Context:** Weave v1, the actual topology app
 
@@ -35,10 +35,10 @@ Weave is observed-first.
   probe/control traffic and is dropped.
 - The graph is cumulative in memory since start/reset, with a five-minute
   activity window. There is no database.
-- v1 uses L4 observations only. Hubble flow records do not carry bytes,
-  request counts, latency, or HTTP status. Request-level telemetry would
-  require a Cilium L7 policy that also enforces access and still would not see
-  the two HTTPS edges.
+- The topology remains L4-first. Hubble flow records do not carry bytes,
+  request counts, latency, or HTTP status. HTTP L7 evidence was added later by
+  a separate eBPF observer; see ADR-0004. It is attached to the L4 edges and is
+  never used to create edges that L4 did not observe.
 
 ## Consequences
 
@@ -61,7 +61,8 @@ Weave is observed-first.
   would not match the workload-level expected graph.
 - **One edge per flow.** Rejected: it produces thousands of edges and loses the
   topology.
-- **Cilium L7 policy for request telemetry.** Deferred: it changes the Target
-  App's enforcement and is not needed to prove topology construction.
+- **Cilium L7 policy for request telemetry.** Rejected in ADR-0004: the Envoy
+  proxy exceeded the performance gate and policy removal disrupted live
+  connections.
 - **Prometheus for bytes.** Deferred: the first slice has no metrics stack and
   the graph is about connectivity, not throughput.

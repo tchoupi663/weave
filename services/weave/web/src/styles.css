@@ -1277,3 +1277,144 @@ button:disabled {
     display: none;
   }
 }
+
+/* L7 HTTP telemetry */
+
+.edge-l7 {
+  fill: var(--accent);
+}
+
+.l7-section {
+  padding-top: 18px;
+}
+
+.l7-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.l7-summary div {
+  min-width: 0;
+}
+
+.l7-summary span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-3);
+  font-size: 9px;
+}
+
+.l7-summary strong {
+  display: block;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.l7-status {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 20px;
+}
+
+.l7-status-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  color: var(--text-3);
+}
+
+.l7-status-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.status-2xx {
+  background: var(--ok);
+}
+
+.status-3xx {
+  background: var(--slate);
+}
+
+.status-4xx {
+  background: var(--source);
+}
+
+.status-5xx {
+  background: var(--danger);
+}
+
+.l7-status-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.l7-status-count {
+  margin-left: auto;
+  color: var(--text-2);
+  font-size: 10px;
+}
+
+.l7-window-heading {
+  margin-top: 22px;
+}
+
+.l7-routes-heading {
+  margin-top: 22px;
+}
+
+.route-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.route-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.route-method {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.route-path {
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.route-count {
+  color: var(--text-2);
+  font-size: 10px;
+}
+
+.l7-note {
+  margin: 16px 0 0;
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 1.5;
+}

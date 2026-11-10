@@ -26,6 +26,7 @@ func New(store *topology.Store, webDir string, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /api/topology", s.topology)
 	mux.HandleFunc("GET /api/stream", s.stream)
 	mux.HandleFunc("POST /api/reset", s.reset)
+	mux.HandleFunc("POST /v1/traces", s.traces)
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("/", s.static)

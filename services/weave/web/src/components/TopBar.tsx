@@ -60,7 +60,7 @@ export function TopBar({
         <span className="namespace">{snapshot?.namespace ?? 'weave'}</span>
         <span className="counts">
           {counts
-            ? `${formatCount(counts.nodes)} ${counts.nodes === 1 ? 'node' : 'nodes'} · ${formatCount(counts.edges)} ${counts.edges === 1 ? 'edge' : 'edges'}`
+            ? `${formatCount(counts.nodes)} ${counts.nodes === 1 ? 'node' : 'nodes'} · ${formatCount(counts.edges)} ${counts.edges === 1 ? 'edge' : 'edges'}${counts.l7_edges > 0 ? ` · ${formatCount(counts.l7_edges)} L7` : ''}`
             : 'No snapshot'}
         </span>
       </div>

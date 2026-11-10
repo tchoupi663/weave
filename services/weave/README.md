@@ -1,8 +1,8 @@
 # Weave
 
-The actual app: a Go process that follows Hubble Relay, constructs a
-workload-level topology from observed L4 flows, and serves the Weave operator
-screen.
+The actual app: a Go process that follows Hubble Relay for L4, accepts
+HTTP spans from Grafana Beyla for L7, constructs a workload-level
+topology, and serves the Weave operator screen.
 
 The design and product truth live at the repository root:
 [DESIGN.md](../../DESIGN.md) and [PRODUCT.md](../../PRODUCT.md). The API and
@@ -11,14 +11,18 @@ topology semantics are in [docs/weave-contract.md](../../docs/weave-contract.md)
 ## What it does
 
 - `internal/hubble` follows `Observer.GetFlows` with `follow=true`.
-- `internal/topology` filters, deduplicates, groups pods into workloads, and
-  keeps cumulative counters plus five-minute activity buckets.
-- `internal/api` serves `/api/topology`, `/api/stream`, `/api/reset`, and
-  `/health`, and serves the built SPA.
+- `internal/topology` filters and deduplicates L4 flows, groups pods into
+  workloads, and keeps cumulative counters plus five-minute activity buckets.
+  L7 spans attach to those edges and keep separate request, status, latency,
+  and route aggregates.
+- `internal/api` serves `/api/topology`, `/api/stream`, `/api/reset`,
+  `/v1/traces`, and `/health`, and serves the built SPA.
 - `web` is the Vite/React screen.
 
 The process does not call the Kubernetes API and does not mutate the Target
 App. It uses one environment-configured namespace and the in-cluster Relay.
+Beyla is a separate privileged DaemonSet; see
+`deploy/platform/observability/README.md`.
 
 ## Local development
 
@@ -53,7 +57,8 @@ npm run build
 ```
 
 The end-to-end script at the repository root builds the image, deploys the
-chart, runs the Simulator, and asserts the nine-node/eight-edge graph:
+chart, runs the Simulator, and asserts the nine-node/eight-edge graph plus the
+five L7-bearing edges:
 
 ```bash
 ./scripts/weave-integration-test.sh

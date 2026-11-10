@@ -1,0 +1,32 @@
+image:
+  tag: "3.40.0"
+
+# No traffic-path change: Beyla observes with eBPF probes.
+contextPropagation:
+  enabled: false
+
+config:
+  data:
+    discovery:
+      instrument:
+        # Gateway client spans cover Gateway -> Auth/Catalog/Orders/Payment.
+        # Gateway server spans cover Frontend -> Gateway. Instrumenting the
+        # frontend nginx process as well was measured above the performance
+        # gate; the gateway-only observer stays within it.
+        - k8s_namespace: weave
+          k8s_deployment_name: gateway
+    otel_traces_export:
+      endpoint: http://weave.weave-system.svc.cluster.local:8080
+      protocol: http/protobuf
+    attributes:
+      kubernetes:
+        enable: true
+    log_level: info
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

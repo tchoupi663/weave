@@ -45,6 +45,53 @@ type Edge struct {
 	FirstSeen   time.Time `json:"first_seen"`
 	LastSeen    time.Time `json:"last_seen"`
 	Activity    []uint64  `json:"activity"`
+	L7          *L7Stats  `json:"l7,omitempty"`
+}
+
+// L7Stats is HTTP telemetry attached to the L4 edge that connects the same
+// two workloads. LatencySource says whether the duration came from the client
+// or server span. It is additive: L4 counters are not replaced or summed with
+// L7 request counts.
+type L7Stats struct {
+	Protocol      string             `json:"protocol"`
+	LatencySource string             `json:"latency_source"`
+	Requests      uint64             `json:"requests"`
+	Responses     uint64             `json:"responses"`
+	Status        L7StatusCounts     `json:"status"`
+	LatencyMs     LatencyPercentiles `json:"latency_ms"`
+	Window        L7Window           `json:"window"`
+	Routes        []L7Route          `json:"routes"`
+	FirstSeen     time.Time          `json:"first_seen"`
+	LastSeen      time.Time          `json:"last_seen"`
+}
+
+type L7StatusCounts struct {
+	Success     uint64 `json:"2xx"`
+	Redirect    uint64 `json:"3xx"`
+	ClientError uint64 `json:"4xx"`
+	ServerError uint64 `json:"5xx"`
+	Other       uint64 `json:"other"`
+}
+
+type LatencyPercentiles struct {
+	P50 float64 `json:"p50"`
+	P95 float64 `json:"p95"`
+}
+
+type L7Window struct {
+	Requests  uint64             `json:"requests"`
+	Responses uint64             `json:"responses"`
+	Status    L7StatusCounts     `json:"status"`
+	LatencyMs LatencyPercentiles `json:"latency_ms"`
+	Activity  []uint64           `json:"activity"`
+}
+
+type L7Route struct {
+	Method    string         `json:"method"`
+	Path      string         `json:"path"`
+	Requests  uint64         `json:"requests"`
+	Responses uint64         `json:"responses"`
+	Status    L7StatusCounts `json:"status"`
 }
 
 type Totals struct {
@@ -52,6 +99,9 @@ type Totals struct {
 	Edges       int    `json:"edges"`
 	Connections uint64 `json:"connections"`
 	Events      uint64 `json:"events"`
+	L7Edges     int    `json:"l7_edges"`
+	L7Requests  uint64 `json:"l7_requests"`
+	L7Responses uint64 `json:"l7_responses"`
 }
 
 type HubbleStatus struct {
@@ -59,6 +109,7 @@ type HubbleStatus struct {
 	LastFlowAt *time.Time `json:"last_flow_at,omitempty"`
 	LastError  string     `json:"last_error,omitempty"`
 	Observed   uint64     `json:"observed_flows"`
+	ObservedL7 uint64     `json:"observed_l7_observations"`
 }
 
 type Snapshot struct {

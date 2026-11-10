@@ -39,6 +39,7 @@ type edgeState struct {
 	connections uint64
 	events      uint64
 	activity    map[int64]uint64
+	l7          *l7State
 }
 
 // Store is the in-memory topology constructor. It contains no declared graph:
@@ -57,6 +58,7 @@ type Store struct {
 	hubbleError     string
 	lastFlowAt      time.Time
 	observed        uint64
+	observedL7      uint64
 	ingested        uint64
 }
 
@@ -235,6 +237,7 @@ func (s *Store) Reset() {
 	s.seen = make(map[string]time.Time)
 	s.lastFlowAt = time.Time{}
 	s.observed = 0
+	s.observedL7 = 0
 	s.ingested = 0
 }
 
@@ -254,11 +257,20 @@ func (s *Store) SnapshotAt(now time.Time) Snapshot {
 	outdegree := make(map[string]int)
 	totalConnections := uint64(0)
 	totalEvents := uint64(0)
+	totalL7Edges := 0
+	totalL7Requests := uint64(0)
+	totalL7Responses := uint64(0)
 
 	for _, edge := range s.edges {
 		outdegree[edge.source]++
 		totalConnections += edge.connections
 		totalEvents += edge.events
+		l7 := edge.l7.snapshot(now, s.bucketSeconds)
+		if l7 != nil {
+			totalL7Edges++
+			totalL7Requests += l7.Requests
+			totalL7Responses += l7.Responses
+		}
 		edges = append(edges, Edge{
 			ID:          edge.id,
 			Source:      edge.source,
@@ -270,6 +282,7 @@ func (s *Store) SnapshotAt(now time.Time) Snapshot {
 			FirstSeen:   edge.firstSeen.UTC(),
 			LastSeen:    edge.lastSeen.UTC(),
 			Activity:    edgeActivity(edge.activity, now, s.bucketSeconds),
+			L7:          l7,
 		})
 	}
 	for i, count := range activity {
@@ -316,9 +329,10 @@ func (s *Store) SnapshotAt(now time.Time) Snapshot {
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Name < nodes[j].Name })
 
 	status := HubbleStatus{
-		Connected: s.hubbleConnected,
-		LastError: s.hubbleError,
-		Observed:  s.observed,
+		Connected:  s.hubbleConnected,
+		LastError:  s.hubbleError,
+		Observed:   s.observed,
+		ObservedL7: s.observedL7,
 	}
 	if !s.lastFlowAt.IsZero() {
 		last := s.lastFlowAt.UTC()
@@ -338,6 +352,9 @@ func (s *Store) SnapshotAt(now time.Time) Snapshot {
 			Edges:       len(edges),
 			Connections: totalConnections,
 			Events:      totalEvents,
+			L7Edges:     totalL7Edges,
+			L7Requests:  totalL7Requests,
+			L7Responses: totalL7Responses,
 		},
 		Hubble: status,
 	}

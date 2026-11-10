@@ -1,5 +1,5 @@
 import { formatClock, formatCount, formatDateTime, formatRelative, roleLabel, shortKind } from '../format'
-import type { Selection, Snapshot, TopologyEdge, TopologyNode } from '../types'
+import type { L7Stats, Selection, Snapshot, TopologyEdge, TopologyNode } from '../types'
 import { CloseIcon } from '../icons'
 
 interface Props {
@@ -10,10 +10,10 @@ interface Props {
   onSelect: (selection: Selection) => void
 }
 
-function MiniActivity({ values }: { values: number[] }) {
+function MiniActivity({ values, label = 'Observed flow events in the last five minutes' }: { values: number[]; label?: string }) {
   const max = Math.max(1, ...values)
   return (
-    <div className="mini-activity" role="img" aria-label="Observed flow events in the last five minutes">
+    <div className="mini-activity" role="img" aria-label={label}>
       {values.map((value, index) => (
         <span
           key={index}
@@ -141,6 +141,85 @@ function NodeInspector({
   )
 }
 
+function formatLatency(value: number): string {
+  if (!value) return '—'
+  return value >= 10 ? `${Math.round(value)} ms` : `${value.toFixed(1)} ms`
+}
+
+function latencySourceLabel(source: L7Stats['latency_source']): string {
+  if (source === 'server') return 'server latency'
+  if (source === 'mixed') return 'mixed latency'
+  return 'client latency'
+}
+
+function L7Section({ stats }: { stats: L7Stats }) {
+  const latencySource = stats.latency_source ?? 'client'
+  const statuses: Array<[string, number]> = [
+    ['2xx', stats.status['2xx']],
+    ['3xx', stats.status['3xx']],
+    ['4xx', stats.status['4xx']],
+    ['5xx', stats.status['5xx']],
+  ]
+  return (
+    <section className="inspector-section l7-section">
+      <div className="section-heading">
+        <h3>HTTP</h3>
+        <span className="mono muted-copy">{formatCount(stats.requests)} requests · {latencySourceLabel(latencySource)}</span>
+      </div>
+
+      <div className="l7-summary">
+        <div>
+          <span>Requests</span>
+          <strong>{formatCount(stats.requests)}</strong>
+        </div>
+        <div>
+          <span>Responses</span>
+          <strong>{formatCount(stats.responses)}</strong>
+        </div>
+        <div>
+          <span>p50</span>
+          <strong>{formatLatency(stats.latency_ms.p50)}</strong>
+        </div>
+        <div>
+          <span>p95</span>
+          <strong>{formatLatency(stats.latency_ms.p95)}</strong>
+        </div>
+      </div>
+
+      <div className="l7-status" aria-label="HTTP status classes">
+        {statuses.map(([label, value]) => (
+          <div className="l7-status-item" key={label}>
+            <span className={`l7-status-dot status-${label}`} aria-hidden="true" />
+            <span className="l7-status-label">{label}</span>
+            <span className="mono l7-status-count">{formatCount(value)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="section-heading l7-window-heading">
+        <h3>Last five minutes</h3>
+        <span className="mono muted-copy">{formatCount(stats.window.requests)} requests</span>
+      </div>
+      <MiniActivity values={stats.window.activity} label="HTTP requests in the last five minutes" />
+
+      <h3 className="l7-routes-heading">Routes</h3>
+      <div className="route-list">
+        {stats.routes.map((route) => (
+          <div className="route-row" key={`${route.method} ${route.path}`}>
+            <span className="route-method">{route.method}</span>
+            <span className="route-path">{route.path}</span>
+            <span className="mono route-count">{formatCount(route.requests)}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className="l7-note">
+        {latencySource === 'server' ? 'Server-observed' : latencySource === 'mixed' ? 'Mixed client/server' : 'Client-observed'} HTTP via eBPF. Latency is {latencySourceLabel(latencySource)}; headers, query strings, and bodies are discarded.
+      </p>
+    </section>
+  )
+}
+
 function EdgeInspector({
   snapshot,
   edge,
@@ -179,6 +258,8 @@ function EdgeInspector({
         <MiniActivity values={edge.activity} />
       </section>
 
+      {edge.l7 ? <L7Section stats={edge.l7} /> : null}
+
       <section className="inspector-section">
         <h3>Observation</h3>
         <div className="detail-rows">
@@ -198,7 +279,9 @@ function EdgeInspector({
       </section>
 
       <p className="inspector-footnote">
-        L4 observation. Replies and handshake packets are folded into this edge; request counts and latency are not available.
+        {edge.l7
+          ? 'L4 and HTTP. Connections and events are L4 observations; the HTTP block names its latency source and excludes query strings, headers, and bodies.'
+          : 'L4 only. No HTTP client or server span was observed for this edge; HTTPS and Postgres are not L7-visible.'}
       </p>
     </>
   )

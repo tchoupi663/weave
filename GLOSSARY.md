@@ -73,15 +73,50 @@ The dummy downstream service that Payment calls. It is part of the Target App fi
 _Avoid_: External, external service, external users.
 
 **Topology**:
-The graph of nodes and edges inferred by Weave from observed network activity. The Simulator is not a node; its traffic appears as the Source IP boundary.
+The graph of nodes and edges inferred by Weave from observed network activity, plus the HTTP evidence attached to edges that have it. The Simulator is not a node; its traffic appears as the Source IP boundary.
 _Avoid_: graph, map, diagram.
+
+**L7 Observation**:
+One completed HTTP request observed by Beyla and attributed to an Edge. It carries method, normalized path, status code, duration, and whether the duration is client- or server-observed. It never carries headers, query strings, or bodies.
+_Avoid_: request log, trace, span (when the distinction matters).
+
+**HTTP Request**:
+The unit counted by an L7 Observation. It is not a Connection and not an L4 Event; the three counts are never summed.
+_Avoid_: call, transaction.
+
+**Status Class**:
+The first digit of an HTTP response status, grouped as `2xx`, `3xx`, `4xx`, `5xx`, or `other`. A status class is evidence from the response, not a health verdict.
+_Avoid_: error rate, success rate.
+
+**Client Latency**:
+The elapsed time of an HTTP request measured at the calling workload by Beyla. It is not Cilium proxy latency and not server processing time.
+_Avoid_: response time, service latency, p95 latency (unless the percentile is named).
+
+**Server Latency**:
+The elapsed time of an HTTP request measured at the serving workload by Beyla. Frontend → Gateway is server-observed in v1 because the gateway-only observer avoided frontend instrumentation that exceeded the performance gate.
+_Avoid_: client latency, response time, proxy latency.
+
+**Latency Source**:
+The `latency_source` field on an L7 block: `client`, `server`, or `mixed`. It exists so the same percentile never hides which side of the request was measured.
+
+**Normalized Route**:
+A method plus a path with dynamic segments replaced by `:id`, used to keep route cardinality bounded. Query strings are discarded before normalization.
+_Avoid_: endpoint, URL, path template.
+
+**L7 Coverage**:
+The set of Edges with at least one L7 Observation. In v1 it is the five HTTP edges leaving Frontend and Gateway; Source IP → Frontend, Orders → Postgres, and Payment → External Payment Provider remain L4-only.
+_Avoid_: full coverage, all traffic.
+
+**Beyla**:
+The privileged eBPF observer that instruments the Gateway Deployment and exports client and server HTTP spans. Its client spans cover Gateway → downstream; its server spans cover Frontend → Gateway. It is a separate platform component, not part of the Target App, and it does not insert a proxy.
+_Avoid_: agent, sidecar, instrumentation SDK.
 
 **Node**:
 A logical Kubernetes workload (Deployment, StatefulSet, or DaemonSet) that appeared in at least one qualifying flow, or the single Source IP boundary node. Pods and IP addresses are evidence attached to a node, not nodes themselves.
 _Avoid_: pod node, service node, host.
 
 **Edge**:
-One ordered workload pair plus destination port. Replies and handshake packets fold into the request-direction edge. A new workload or port creates a new edge.
+One ordered workload pair plus destination port. Replies and handshake packets fold into the request-direction edge. A new workload or port creates a new edge. An Edge always has L4 counters and may also carry L7 evidence.
 _Avoid_: flow, connection, link.
 
 **Connection**:
@@ -93,5 +128,5 @@ A unique non-reply L4 flow observation after deduplication. Events are the activ
 _Avoid_: packet, request, message.
 
 **Activity Window**:
-The five-minute rolling set of 60 event buckets on each edge and on the whole graph. Cumulative node and edge totals are kept separately since Weave started or was reset.
+The five-minute rolling set of 60 event buckets on each edge and on the whole graph. L7 requests have their own five-minute activity sparkline and do not feed the L4 event buckets. Cumulative node, edge, and L7 totals are kept separately since Weave started or was reset.
 _Avoid_: history, retention, time series.

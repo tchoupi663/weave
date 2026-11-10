@@ -15,6 +15,48 @@ export interface TopologyNode {
   last_seen: string
 }
 
+export interface L7StatusCounts {
+  '2xx': number
+  '3xx': number
+  '4xx': number
+  '5xx': number
+  other: number
+}
+
+export interface LatencyPercentiles {
+  p50: number
+  p95: number
+}
+
+export interface L7Window {
+  requests: number
+  responses: number
+  status: L7StatusCounts
+  latency_ms: LatencyPercentiles
+  activity: number[]
+}
+
+export interface L7Route {
+  method: string
+  path: string
+  requests: number
+  responses: number
+  status: L7StatusCounts
+}
+
+export interface L7Stats {
+  protocol: string
+  latency_source: 'client' | 'server' | 'mixed'
+  requests: number
+  responses: number
+  status: L7StatusCounts
+  latency_ms: LatencyPercentiles
+  window: L7Window
+  routes: L7Route[]
+  first_seen: string
+  last_seen: string
+}
+
 export interface TopologyEdge {
   id: string
   source: string
@@ -26,6 +68,7 @@ export interface TopologyEdge {
   first_seen: string
   last_seen: string
   activity: number[]
+  l7?: L7Stats
 }
 
 export interface HubbleStatus {
@@ -33,6 +76,7 @@ export interface HubbleStatus {
   last_flow_at?: string
   last_error?: string
   observed_flows: number
+  observed_l7_observations: number
 }
 
 export interface Snapshot {
@@ -48,6 +92,9 @@ export interface Snapshot {
     edges: number
     connections: number
     events: number
+    l7_edges: number
+    l7_requests: number
+    l7_responses: number
   }
   hubble: HubbleStatus
 }

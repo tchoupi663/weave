@@ -8,7 +8,14 @@ export GOCACHE="${GOCACHE:-$ROOT/.cache/go-build}"
 export GOMODCACHE="${GOMODCACHE:-$ROOT/.cache/go-mod}"
 export GOTMPDIR="${GOTMPDIR:-$ROOT/.cache/gotmp}"
 export GOSUMDB="${GOSUMDB:-off}"
-mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOTMPDIR" "$ROOT/.cache"
+export DOCKER_CONFIG="${DOCKER_CONFIG:-$ROOT/.cache/docker}"
+if [[ -z "${DOCKER_HOST:-}" && -S "$HOME/.docker/run/docker.sock" ]]; then
+  export DOCKER_HOST="unix://$HOME/.docker/run/docker.sock"
+fi
+export HELM_CACHE_HOME="${HELM_CACHE_HOME:-$ROOT/.cache/helm/cache}"
+export HELM_CONFIG_HOME="${HELM_CONFIG_HOME:-$ROOT/.cache/helm/config}"
+export HELM_DATA_HOME="${HELM_DATA_HOME:-$ROOT/.cache/helm/data}"
+mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOTMPDIR" "$DOCKER_CONFIG" "$HELM_CACHE_HOME" "$HELM_CONFIG_HOME" "$HELM_DATA_HOME" "$ROOT/.cache"
 
 WEAVE_PORT="${WEAVE_PORT:-18090}"
 TARGET_PORT="${TARGET_PORT:-8443}"
@@ -28,6 +35,17 @@ done
 echo "==> Check Target App in weave"
 kubectl -n weave get service/frontend >/dev/null
 kubectl -n weave get pods >/dev/null
+
+if ! kubectl -n beyla-system get daemonset/beyla >/dev/null 2>&1; then
+  echo "Beyla is not installed. See deploy/platform/observability/README.md." >&2
+  exit 1
+fi
+
+if kubectl -n weave get ciliumnetworkpolicies.cilium.io 2>/dev/null | grep -q .; then
+  echo "A CiliumNetworkPolicy exists in weave; L7 must not use the Cilium proxy." >&2
+  kubectl -n weave get ciliumnetworkpolicies.cilium.io >&2
+  exit 1
+fi
 
 if ! curl -ksf "https://localhost:${TARGET_PORT}/health" >/dev/null 2>&1; then
   echo "==> Port-forward Target App on ${TARGET_PORT}"
@@ -57,7 +75,7 @@ docker build -t weave-app:dev -f services/weave/Dockerfile services/weave
 kind load docker-image weave-app:dev --name kind
 
 echo "==> Deploy Weave"
-helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace
+helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace --set image.tag=dev
 kubectl -n weave-system rollout restart deploy/weave
 kubectl -n weave-system rollout status deploy/weave --timeout=120s
 
@@ -117,6 +135,9 @@ assert snapshot["namespace"] == "weave", snapshot["namespace"]
 assert snapshot["hubble"]["connected"] is True, snapshot["hubble"]
 assert snapshot["totals"]["nodes"] == 9, snapshot["totals"]
 assert snapshot["totals"]["edges"] == 8, snapshot["totals"]
+assert snapshot["totals"]["l7_edges"] == 5, snapshot["totals"]
+assert snapshot["totals"]["l7_requests"] > 0, snapshot["totals"]
+assert snapshot["totals"]["l7_responses"] > 0, snapshot["totals"]
 
 by_id = {node["id"]: node for node in snapshot["nodes"]}
 expected = {
@@ -137,6 +158,31 @@ for edge in snapshot["edges"]:
 
 assert actual == expected, f"edges do not match expected topology:\nactual={actual}\nexpected={expected}"
 assert len(snapshot["activity"]) == 60, len(snapshot["activity"])
+
+l7_expected = {
+    ("Frontend", "API Gateway"): "server",
+    ("API Gateway", "Auth"): "client",
+    ("API Gateway", "Catalog"): "client",
+    ("API Gateway", "Orders"): "client",
+    ("API Gateway", "Payment"): "client",
+}
+l7_seen = set()
+for edge in snapshot["edges"]:
+    source = by_id[edge["source"]]["name"]
+    target = by_id[edge["target"]]["name"]
+    pair = (source, target)
+    if pair in l7_expected:
+        assert "l7" in edge and edge["l7"]["requests"] > 0, f"missing L7 for {pair}: {edge}"
+        l7_seen.add(pair)
+        l7 = edge["l7"]
+        assert l7["latency_source"] == l7_expected[pair], (pair, l7["latency_source"])
+        assert len(l7["window"]["activity"]) == 60, l7["window"]["activity"]
+        assert len(l7["routes"]) <= 5, l7["routes"]
+        assert "headers" not in l7 and "query" not in l7 and "body" not in l7, l7
+    else:
+        assert "l7" not in edge, f"unexpected L7 on L4-only edge {pair}: {edge}"
+
+assert l7_seen == set(l7_expected), (l7_seen, set(l7_expected))
 print("weave topology ok:", snapshot["totals"])
 PY
 

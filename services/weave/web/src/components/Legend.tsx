@@ -22,7 +22,7 @@ export function Legend({ snapshot }: { snapshot: Snapshot }) {
           {LABELS[role]}
         </span>
       ))}
-      <span className="legend-note">L4 observations</span>
+      <span className="legend-note">{snapshot.totals.l7_edges > 0 ? 'L4 + L7 observations' : 'L4 observations'}</span>
     </div>
   )
 }
