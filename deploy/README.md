@@ -8,7 +8,7 @@ exist.
 |---|---|---|
 | `cluster/` | day 0 — before any GitOps | kind cluster definition, CNI (Cilium) values, `bootstrap.sh` |
 | `gitops/` | day 1 — the deployer | Argo CD values (later), Application definitions |
-| `platform/` | day 2+ — cluster addons | ingress, observability (Beyla), secret management |
+| `platform/` | day 2+ — cluster addons | Argo CD, Chaos Mesh, observability (Beyla), ingress, secret management |
 | `charts/` | the apps | `target-app/` and `weave/` Helm charts, environment-neutral defaults |
 | `envs/` | the app's environments | one values file per environment, deltas only |
 
@@ -22,8 +22,11 @@ kubectl apply -f deploy/gitops/apps/target-app-local.yaml
 1. **Cluster + CNI.** Cilium is the CNI, so it must exist before Argo CD: Argo's
    own Pods need pod networking. This is why the CNI is not managed by Argo.
 2. **Argo CD.** Installed by the same bootstrap script, after Cilium is healthy.
-3. **Applications.** Argo CD renders `charts/target-app` with
-   `envs/<env>/values.yaml` and applies the result.
+3. **Platform.** Install minimal Argo CD and Chaos Mesh:
+   `deploy/platform/argocd/README.md` and `deploy/platform/chaos/README.md`.
+4. **Applications.** Argo CD renders `charts/target-app` with
+   `envs/<env>/values.yaml` and applies the result. The live Target App is
+   Argo-managed; the previous Helm release has been removed.
 
 ## Weave app
 

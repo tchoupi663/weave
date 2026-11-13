@@ -1,0 +1,15 @@
+# 20-minute incident replay: 15m healthy baseline, 2m fault, 3m recovery.
+# The fault harness applies the Chaos Mesh HTTPChaos object at the 15m mark.
+run:
+  id: incident-replay
+  seed: 42
+  target: https://localhost:8443
+  expected_topology: ../../expected-topology.yaml
+  duration: 20m
+  concurrency: 50
+  ramp: 10s
+  think_time: {min: 1s, max: 5s}
+  mix: {bounce: 30, browse: 50, order: 20}
+  accounts: {pool: 2000}
+  reset: true
+  tls: {insecure_skip_verify: true}

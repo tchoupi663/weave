@@ -38,14 +38,15 @@ type Options struct {
 
 // Runner executes one Run.
 type Runner struct {
-	cfg       config.Config
-	expected  topology.Topology
-	opts      Options
-	agg       *report.Aggregator
-	userSeq   atomic.Int64
-	accounts  []string
-	transport *http.Transport
-	sourceIP  string
+	cfg         config.Config
+	expected    topology.Topology
+	opts        Options
+	agg         *report.Aggregator
+	userSeq     atomic.Int64
+	accounts    []string
+	transport   *http.Transport
+	sourceIP    string
+	gracePeriod time.Duration
 }
 
 // New returns a Runner.
@@ -70,13 +71,14 @@ func New(cfg config.Config, expected topology.Topology, opts Options) *Runner {
 	rng.Shuffle(len(accounts), func(i, j int) { accounts[i], accounts[j] = accounts[j], accounts[i] })
 
 	return &Runner{
-		cfg:       cfg,
-		expected:  expected,
-		opts:      opts,
-		agg:       report.NewAggregator(opts.LogRequests),
-		accounts:  accounts,
-		transport: client.NewTransport(cfg.Run.TLS.InsecureSkipVerify),
-		sourceIP:  sourceIP,
+		cfg:         cfg,
+		expected:    expected,
+		opts:        opts,
+		agg:         report.NewAggregator(opts.LogRequests),
+		accounts:    accounts,
+		transport:   client.NewTransport(cfg.Run.TLS.InsecureSkipVerify),
+		sourceIP:    sourceIP,
+		gracePeriod: gracePeriod,
 	}
 }
 
@@ -147,7 +149,7 @@ func (r *Runner) Run(ctx context.Context) (*report.Report, error) {
 
 	select {
 	case <-done:
-	case <-time.After(gracePeriod):
+	case <-time.After(r.cfg.Run.Duration.D() + r.gracePeriod):
 		slog.Warn("grace period elapsed; cancelling active users")
 		cancel()
 		<-done

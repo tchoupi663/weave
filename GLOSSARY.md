@@ -1,11 +1,13 @@
-# Weave Testbed
+# Weave
 
-The dummy Target App under observation, the Simulator that drives it, and Weave — the app that turns the resulting Hubble flows into an observed topology.
+Weave is the incident-replay topology app for a Kubernetes application. It
+observes L4/L7 traffic, reads the declared workload inventory, and turns both
+into a time-bounded investigation surface.
 
 ## Language
 
 **Weave**:
-The topology builder that observes the Target App's network activity and infers its nodes and edges. The Weave app runs in `weave-system`, follows Hubble Relay, and serves the operator screen. It is the consumer of the Simulator's traffic, not part of the Target App.
+The topology and incident-replay app. It observes the Target App's L4/L7 traffic, reads the declared workload inventory, persists history, and serves the Operator screen and Agent read API. It is the consumer of the Simulator's traffic, not part of the Target App.
 _Avoid_: topology service, graph service.
 
 **Target App**:
@@ -17,7 +19,7 @@ The service that generates real traffic by having simulated Users execute Journe
 _Avoid_: loadgen, bot, synthetic traffic generator, user simulator.
 
 **Source IP**:
-The external boundary of the observed topology. All non-cluster traffic entering the exposed Frontend collapses into one Source IP node; the Simulator's laptop is the intended source. When the Frontend is reached through a local port-forward, Hubble reports the kind host endpoint instead, and Weave shows that observed address in the inspector.
+The aggregate boundary for all non-cluster sources. Every observed external or host connection is eligible; there is no entrypoint declaration and no special Frontend exemption. The Simulator's laptop is the intended source, but a local port-forward is observed as the kind host endpoint.
 _Avoid_: ext users, External Users, external clients, simulator node.
 
 **User**:
@@ -112,7 +114,7 @@ The privileged eBPF observer that instruments the Gateway Deployment and exports
 _Avoid_: agent, sidecar, instrumentation SDK.
 
 **Node**:
-A logical Kubernetes workload (Deployment, StatefulSet, or DaemonSet) that appeared in at least one qualifying flow, or the single Source IP boundary node. Pods and IP addresses are evidence attached to a node, not nodes themselves.
+A logical Kubernetes workload (Deployment, StatefulSet, or DaemonSet) that appeared in at least one qualifying observed flow, or the aggregate Source IP boundary. Pods and IP addresses are evidence attached to a node, not nodes themselves. A declared workload with no observed traffic is not a Node; it is a Declared Workload shown only as a ghost in a comparison view.
 _Avoid_: pod node, service node, host.
 
 **Edge**:
@@ -128,5 +130,81 @@ A unique non-reply L4 flow observation after deduplication. Events are the activ
 _Avoid_: packet, request, message.
 
 **Activity Window**:
-The five-minute rolling set of 60 event buckets on each edge and on the whole graph. L7 requests have their own five-minute activity sparkline and do not feed the L4 event buckets. Cumulative node, edge, and L7 totals are kept separately since Weave started or was reset.
-_Avoid_: history, retention, time series.
+The five-minute rolling set of 60 event buckets on each edge and on the whole graph. L7 requests have their own five-minute activity sparkline and do not feed the L4 event buckets. It is a presentation window, not the persisted History.
+_Avoid_: long-term history, retention, time series.
+
+**Declared Architecture**:
+The workload inventory the deployment declaration says should exist. In v1 it is object-level: workloads and Services, not call edges. Edges remain observed.
+_Avoid_: declared graph, intended topology.
+
+**Declared Workload**:
+A workload present in Declared Architecture but with no qualifying observed flow. It appears only as a ghost in the architecture/comparison view; it is not a Node in the observed topology.
+_Avoid_: silent node, missing node.
+
+**Drift**:
+A difference between Declared Architecture and the observed topology, or between declared state and live state. Drift is evidence, not a verdict.
+_Avoid_: inconsistency, mismatch.
+
+**Lifecycle State**:
+One of `Declared`, `Active`, `Inactive`, `Undeclared`, `Removed` for a workload. `Inactive` means no qualifying traffic for 30 minutes while still declared/live; `Removed` means no longer declared or no longer live, never merely silent.
+_Avoid_: status, health.
+
+**Change Event**:
+A recorded transition in declared or observed lifecycle. It has provenance (`declared`, `live`, or `observed`). It is not an L4 Event.
+_Avoid_: event, log.
+
+**History**:
+Persisted Change Events and time-bucketed edge telemetry that allow replay and evolution. This is separate from the five-minute Activity Window.
+_Avoid_: activity window, retention, time series.
+
+**Architecture Evolution**:
+Change in Declared Architecture and observed topology over time.
+_Avoid_: drift, history.
+
+**Telemetry Evolution**:
+Change in edge telemetry over time, including traffic, errors, and latency.
+_Avoid_: metrics history, monitoring.
+
+**Incident**:
+A persisted, time-bounded investigation started by an Operator, with a symptom, optional structured scope, evidence, status, and notes. It is not an alert or an anomaly.
+_Avoid_: accident, outage, alert.
+
+**Incident Window**:
+The start and end time selected for an Incident. The end may remain open while the investigation is live.
+_Avoid_: time range, query window.
+
+**Symptom**:
+The Operator's description of what is wrong, optionally scoped to a node, edge, or route. The Symptom provides context; it is not parsed as the diagnosis.
+_Avoid_: error, root cause, alert.
+
+**Baseline Window**:
+The period immediately before an Incident Window used to establish normal edge behavior.
+_Avoid_: normal period, reference window.
+
+**Onset**:
+The first time bucket in which an edge meets the anomaly threshold during an Incident Window.
+_Avoid_: start time, root cause.
+
+**Evidence Snapshot**:
+A versioned, materialized record of an Incident's baseline, anomalous intervals, onset order, and suspect region. It references metric history rather than duplicating it.
+_Avoid_: report, analysis, root cause.
+
+**Suspect**:
+A Node or Edge with supporting evidence of anomalous behavior. A Suspect is not a root cause.
+_Avoid_: culprit, cause, failure.
+
+**Suspect Region**:
+The connected set of Suspect nodes and edges around the earliest Onset. It is the default Incident view and a bounded place to investigate, not a causal claim.
+_Avoid_: root cause, blast radius, incident graph.
+
+**Fault Scenario**:
+A reproducible injected failure with a known ground truth, used to evaluate localization and local development.
+_Avoid_: accident, chaos test, incident.
+
+**Operator**:
+The human using the Weave incident view.
+_Avoid_: user, agent.
+
+**Agent**:
+A software consumer of Weave's read-only API. It shares the Operator's read model; it is not the Operator and does not remediate.
+_Avoid_: operator, bot, assistant.

@@ -140,3 +140,41 @@ func fakeTarget(t *testing.T) *httptest.Server {
 
 	return httptest.NewServer(handler)
 }
+
+func TestRunWaitsForTheConfiguredDurationBeforeGrace(t *testing.T) {
+	srv := fakeTarget(t)
+	defer srv.Close()
+
+	cfg := config.Default()
+	cfg.Run.ID = "grace-timer"
+	cfg.Run.Seed = 7
+	cfg.Run.Target = srv.URL
+	cfg.Run.ExpectedTopology = "unused"
+	cfg.Run.Duration = config.Duration(150 * time.Millisecond)
+	cfg.Run.Concurrency = 1
+	cfg.Run.Ramp = 0
+	cfg.Run.ThinkTime = config.ThinkTime{
+		Min: config.Duration(time.Millisecond),
+		Max: config.Duration(2 * time.Millisecond),
+	}
+	cfg.Run.Mix = map[string]int{"bounce": 30, "browse": 50, "order": 20}
+	cfg.Run.Accounts.Pool = 200
+	cfg.Run.Reset = true
+	cfg.Run.TLS.InsecureSkipVerify = false
+
+	runner := New(cfg, topology.Topology{}, Options{
+		SourceIP:     "test",
+		StepPauseMin: time.Nanosecond,
+		StepPauseMax: time.Nanosecond,
+	})
+	runner.gracePeriod = 30 * time.Millisecond
+
+	rep, err := runner.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	elapsed := rep.EndedAt.Sub(rep.StartedAt)
+	if elapsed < 120*time.Millisecond {
+		t.Fatalf("run ended after %s; it must admit users for the 150ms duration before the grace period", elapsed)
+	}
+}

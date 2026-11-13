@@ -1,6 +1,6 @@
 # ADR-0003: Construct topology from observed flows, not declarations
 
-- **Status:** Accepted (L4 decision; L7 added in ADR-0004)
+- **Status:** Accepted (L4 decision; L7 added in ADR-0004; incident replay, history, and declared inventory amended by ADR-0005)
 - **Date:** 2026-11-09
 - **Context:** Weave v1, the actual topology app
 
@@ -52,6 +52,19 @@ Weave is observed-first.
 - Weave cannot be used to inventory the cluster. It is a traffic map.
 - The expected topology remains an external benchmark input; Weave never reads
   it.
+
+## Amendment
+
+ADR-0005 changes four parts of this decision for the incident-replay slice:
+
+- host/world traffic is no longer restricted to the exposed Frontend;
+- declared workloads from Argo CD are available as ghost nodes and lifecycle
+  states, without becoming observed Nodes or Edges;
+- persistent History and a database replace the in-memory-only statement; and
+- Incidents, a suspect region, and evidence snapshots are added.
+
+The core decision remains: the operational graph is built from observed
+connections, and `expected-topology.yaml` is never the declared architecture.
 
 ## Alternatives considered
 
