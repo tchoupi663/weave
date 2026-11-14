@@ -558,9 +558,7 @@ function IncidentDetail({
             selectedEdge={selectedEdge}
             onSelectEdge={setSelectedEdge}
           />
-          <OnsetTimeline evidence={evidence} snapshot={snapshot} activeAt={activeFrame?.at} />
           <ChangeStrip changes={changes} loading={changesLoading} until={activeFrame?.at} />
-          <NotesEditor incident={incident} busy={busy} onSave={(notes) => void patch({ notes })} />
         </div>
         <EvidencePanel
           evidence={evidence}
@@ -1013,52 +1011,6 @@ function SuspectCanvas({
   )
 }
 
-function OnsetTimeline({
-  evidence,
-  snapshot,
-  activeAt,
-}: {
-  evidence: Incident['evidence']
-  snapshot: Snapshot | null
-  activeAt?: string
-}) {
-  const edges = evidence.edges
-    .filter((edge) => edge.anomaly && edge.onset)
-    .sort((left, right) => new Date(left.onset ?? 0).getTime() - new Date(right.onset ?? 0).getTime())
-  if (edges.length === 0) return null
-  const start = new Date(evidence.window.start).getTime()
-  const end = new Date(evidence.window.end).getTime()
-  const span = Math.max(1, end - start)
-  const currentAt = activeAt ? new Date(activeAt).getTime() : null
-  const currentLeft = currentAt !== null && currentAt >= start && currentAt <= end
-    ? ((currentAt - start) / span) * 100
-    : null
-  return (
-    <section className="incident-panel onset-panel">
-      <div className="section-heading">
-        <h3>Onset</h3>
-        <span className="mono muted-copy">{formatDateTime(evidence.window.start)} → {formatClock(evidence.window.end)}</span>
-      </div>
-      <div className="onset-list">
-        {edges.map((edge, index) => {
-          const at = new Date(edge.onset ?? 0).getTime()
-          const left = Math.min(100, Math.max(0, ((at - start) / span) * 100))
-          return (
-            <div className="onset-row" key={edge.edge_id}>
-              <span className="onset-label">{nodeName(snapshot, edge.source)} → {nodeName(snapshot, edge.target)}</span>
-              <div className="onset-track">
-                <span className={`onset-mark${index === 0 ? ' is-first' : ''}`} style={{ left: `${left}%` }} />
-                {currentLeft !== null ? <span className="onset-current" style={{ left: `${currentLeft}%` }} /> : null}
-              </div>
-              <span className="onset-time">{formatClock(edge.onset)}</span>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
 function EvidencePanel({
   evidence,
   snapshot,
@@ -1188,37 +1140,3 @@ function ChangeStrip({ changes, loading, until }: { changes: ChangeEvent[]; load
   )
 }
 
-function NotesEditor({ incident, busy, onSave }: { incident: Incident; busy: boolean; onSave: (notes: string) => void }) {
-  const [notes, setNotes] = useState(incident.notes)
-  const [dirty, setDirty] = useState(false)
-  useEffect(() => {
-    setNotes(incident.notes)
-    setDirty(false)
-  }, [incident.id, incident.notes])
-
-  return (
-    <section className="incident-panel notes-panel">
-      <div className="section-heading">
-        <h3>Notes</h3>
-        <span className="mono muted-copy">{incident.status === 'open' ? 'open' : 'closed'}</span>
-      </div>
-      <textarea
-        aria-label="Incident notes"
-        value={notes}
-        onChange={(event) => {
-          setNotes(event.target.value)
-          setDirty(true)
-        }}
-        placeholder="Record what you checked, what you ruled out, and what to hand off."
-        rows={3}
-        maxLength={4000}
-      />
-      <div className="notes-actions">
-        <button type="button" className="button button-small" disabled={!dirty || busy} onClick={() => onSave(notes)}>
-          {busy ? 'Saving…' : 'Save note'}
-        </button>
-        <span className="field-hint">Notes stay with this incident and its evidence.</span>
-      </div>
-    </section>
-  )
-}
