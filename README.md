@@ -115,7 +115,7 @@ kubectl -n weave port-forward svc/frontend 8443:8000
 | `GET /api/incidents/{id}` | Incident with its evidence snapshot |
 | `PATCH /api/incidents/{id}` | Update notes or open/closed state |
 | `POST /api/incidents/{id}/recompute` | Recompute evidence for the stored window |
-| `GET /api/incidents/{id}/timeline` | Five-second suspect-edge frames for scrubbing |
+| `GET /api/incidents/{id}/timeline` | Suspect-edge frames for scrubbing, from the baseline through the incident window |
 | `GET /api/changes?from=&to=` | Lifecycle change events |
 | `GET /health`, `/api/health` | Process and Relay status |
 
@@ -126,7 +126,8 @@ See [the Weave contract](docs/weave-contract.md).
 ### Incident view
 
 The `Topology` / `Incidents` switch opens the incident workspace. An incident
-has a 15-minute baseline, a scrub timeline, a suspect-region canvas, per-edge
+has a 15-minute baseline, a scrub timeline that starts with that baseline and
+marks the transition into the incident window, a suspect-region canvas, per-edge
 baseline/incident evidence, lifecycle changes, notes, close/reopen, and a live
 topology link. The incident graph labels show error rates and quantities, not
 protocol labels.
@@ -137,7 +138,7 @@ instrument, not history.
 
 ![Weave topology with HTTP error rates and flow heatmap](docs/images/weave-topology.png)
 
-![Weave incident workspace with scrub timeline](docs/images/weave-incident-workspace.png)
+![Weave incident workspace with the pre-incident baseline and scrub timeline](docs/images/weave-incident-workspace.png)
 
 ![Expanded flow heatmap](docs/images/weave-flow.png)
 

@@ -229,15 +229,21 @@ Returns:
 
 ```json
 {
-  "window": {"start":"...","end":"..."},
+  "window": {"start":"2026-11-14T10:11:35Z","end":"2026-11-14T10:13:35Z"},
+  "context": {"start":"2026-11-14T09:56:35Z","end":"2026-11-14T10:13:35Z"},
   "bucket_seconds": 5,
   "suspect_edges": ["workload:weave/gateway->workload:weave/catalog:8082"],
   "frames": [
+    {"at":"...","edges":[{"edge_id":"...","requests":12,"status_4xx":0,"status_5xx":0,"error_rate":0,"p95_ms":2.4,"anomaly":false}]},
     {"at":"...","edges":[{"edge_id":"...","requests":12,"status_4xx":0,"status_5xx":10,"error_rate":0.833,"p95_ms":2.4,"anomaly":true}]}
   ]
 }
 ```
 
+`window` is the incident's own window and marks the transition point in the
+playback. `context` is the full frame span: the incident's 15-minute baseline
+through the incident window end. The frames start at `context.start`, so the UI
+can show the system working before the incident and then the affected period.
 The UI scrubs these frames. It does not query `GET /api/topology?at=...`; that
 historical full-graph resource remains deferred.
 
@@ -273,9 +279,10 @@ Change Events are not L4 Events.
   They do not show L4/L7 jargon.
 - The live flow heatmap is the five-minute Activity Window; its expanded state
   shows window total, peak bucket, average, and active buckets.
-- An incident shows its symptom/window/status, a scrub timeline, a suspect
-  graph with per-frame error rates and quantities, evidence, onset, changes,
-  notes, and close/reopen controls.
+- An incident shows its symptom/window/status, a scrub timeline that starts
+  with the baseline and marks the incident transition, a suspect graph with
+  per-frame error rates and quantities, evidence, onset, changes, notes, and
+  close/reopen controls.
 - Incident graph edge labels carry error percentage and quantities, not
   protocol labels. Nodes are draggable; edges and nodes focus on hover; edges
   are selectable.

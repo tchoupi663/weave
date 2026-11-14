@@ -18,14 +18,20 @@ type TimelineEdge struct {
 	Anomaly   bool    `json:"anomaly"`
 }
 
-// TimelineFrame is one scrubbable moment in an incident window.
+// TimelineFrame is one scrubbable moment in an incident playback. The playback
+// starts at the incident baseline and ends at the incident window end.
 type TimelineFrame struct {
 	At    time.Time      `json:"at"`
 	Edges []TimelineEdge `json:"edges"`
 }
 
 type IncidentTimeline struct {
-	Window        TimeRange       `json:"window"`
+	// Window is the incident's own window. It marks the boundary between the
+	// pre-incident baseline and the affected period inside the scrubber.
+	Window TimeRange `json:"window"`
+	// Context is the full frame span: the incident's 15-minute baseline,
+	// followed by the incident window. It is the playback range the UI labels.
+	Context       TimeRange       `json:"context"`
 	BucketSeconds int             `json:"bucket_seconds"`
 	SuspectEdges  []string        `json:"suspect_edges"`
 	Frames        []TimelineFrame `json:"frames"`
@@ -39,15 +45,20 @@ func (h *History) IncidentTimeline(ctx context.Context, id string) (*IncidentTim
 		return nil, err
 	}
 	window := TimeRange{Start: incident.WindowStart.UTC(), End: incident.WindowEnd.UTC()}
+	// Start the playback at the baseline so the operator can see the system
+	// working before the incident, not only the affected window.
+	contextStart := incident.BaselineStart.UTC()
+	contextEnd := window.End
+	span := contextEnd.Sub(contextStart)
 	bucket := 5 * time.Second
 	table := "edge_metrics_5s"
-	if window.End.Sub(window.Start) > 2*time.Hour {
+	if span > 2*time.Hour {
 		bucket = time.Minute
 		table = "edge_metrics_1m"
 	}
-	// Keep the frame count bounded on long windows. The first slice is a
-	// 20-minute window, so this normally stays at 5 s.
-	if window.End.Sub(window.Start)/bucket > maxTimelineFrames {
+	// Keep the frame count bounded on long windows. The acceptance window is a
+	// 2-minute incident after a 15-minute baseline, so this normally stays at 5 s.
+	if span/bucket > maxTimelineFrames {
 		bucket = time.Minute
 		table = "edge_metrics_1m"
 	}
@@ -63,9 +74,9 @@ func (h *History) IncidentTimeline(ctx context.Context, id string) (*IncidentTim
 		}
 	}
 
-	start := window.Start.Truncate(bucket)
+	start := contextStart.Truncate(bucket)
 	frames := make([]TimelineFrame, 0)
-	for at := start; at.Before(window.End); at = at.Add(bucket) {
+	for at := start; at.Before(contextEnd); at = at.Add(bucket) {
 		frames = append(frames, TimelineFrame{At: at.UTC(), Edges: []TimelineEdge{}})
 		if len(frames) >= maxTimelineFrames {
 			break
@@ -81,7 +92,7 @@ FROM %s
 WHERE bucket_start >= ? AND bucket_start < ?
 GROUP BY bucket_start, edge_id
 ORDER BY bucket_start, edge_id`, table)
-	rows, err := h.duck.QueryContext(ctx, query, window.Start, window.End)
+	rows, err := h.duck.QueryContext(ctx, query, start, contextEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +134,7 @@ ORDER BY bucket_start, edge_id`, table)
 	sort.Strings(suspects)
 	return &IncidentTimeline{
 		Window:        window,
+		Context:       TimeRange{Start: start.UTC(), End: contextEnd.UTC()},
 		BucketSeconds: int(bucket / time.Second),
 		SuspectEdges:  suspects,
 		Frames:        frames,

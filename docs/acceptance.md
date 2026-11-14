@@ -70,21 +70,48 @@ Auth and Payment are outside the region.
   0.0% errors, 4.7 ms p95. The first incident frame is 34 requests, 53% errors,
   6.3 ms p95; later frames reach 67% on Catalog and 100% on some samples.
 
+### Timeline semantics
+
+- The scrubber uses a semantic green → amber → red ramp: green for a sampled
+  bucket with no errors, amber for elevated error rates, red for a fault.
+- A 5-second bucket with no requests is a sampling gap, not a healthy bucket.
+  Inside a sampled run it inherits the adjacent observed state so a gap inside
+  the fault remains red instead of turning white. A leading gap with no earlier
+  sample stays neutral and reads `No sample` in the legend. The rule is visible
+  at `11:12:22` local: inside the fault, a zero-request bucket keeps the red
+  state rather than turning white.
+- The timeline starts with the incident's 15-minute baseline. For this stored
+  incident the current API returns 204 frames at 5 seconds: 180 pre-incident
+  frames and 24 incident frames. Every frame carries suspect-edge buckets. The
+  final two incident buckets have zero requests and inherit the last observed
+  red state.
+- The transition is visible in the scrubber: the last pre-incident frame
+  (`10:11:30Z`) is 58 and 45 requests at 0% errors; the first incident frame
+  (`10:11:35Z`) is 53% and 67% errors with 18 5xx on each suspect edge. The
+  scrubber labels the current moment `Pre-incident` or `Incident` and marks the
+  incident boundary, so the state is written, not carried by color alone.
+- The incident window itself is entirely inside the injected fault. With the
+  pre-incident context, the strip is green up to the boundary and red after it.
+
 ### Timeline and persistence
 
-- Timeline: 24 frames at 5 seconds, all 24 with suspect-edge samples.
+- Timeline: 24 incident frames at 5 seconds in the recorded run. The current API
+  also returns the 180 pre-incident baseline frames from the same stored history
+  (204 total).
 - Weave restart: `history ready edge_5s=4134 edge_1m=514 changes=127`.
 - Incident JSON hash before and after restart: identical
   (`21f247a31718d37626dad7ffc347ff1bc01b5cd88c6d4194117ed848441e275c`).
-- Timeline JSON hash before and after restart: identical
-  (`aaa719f2a6ea82f31703fe16d0303df9429d9ac5f4c6f72b1f11c93b2346343c`).
+- Timeline JSON hash before and after restart: identical for the current
+  pre-incident context response (`c1e46654ef679106b232c05cfe9d703c8627fd3a3d24ad780bb563b56566fc3f`).
+  The original window-only response hash was
+  `aaa719f2a6ea82f31703fe16d0303df9429d9ac5f4c6f72b1f11c93b2346343c`.
 - The live topology was restored with a short run after restart: 9 nodes,
   8 edges, 5 HTTP edges, zero failures.
 
 ### Screenshots
 
-- `docs/images/weave-incident-workspace.png` — acceptance incident with scrub
-  timeline, suspect region, and evidence.
+- `docs/images/weave-incident-workspace.png` — acceptance incident with the
+  pre-incident baseline, scrub timeline, suspect region, and evidence.
 - `docs/images/weave-topology.png` — live topology with HTTP error rates and the
   flow heat panel.
 - `docs/images/weave-flow.png` — expanded flow heat panel.

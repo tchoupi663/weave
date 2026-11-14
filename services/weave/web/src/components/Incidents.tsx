@@ -40,6 +40,18 @@ function formatRate(value: number): string {
   return `${(value * 100).toFixed(value >= 0.1 ? 0 : 1)}%`
 }
 
+function formatSpan(start: string, end: string): string {
+  const span = new Date(end).getTime() - new Date(start).getTime()
+  if (!Number.isFinite(span) || span <= 0) return '0s'
+  const seconds = Math.round(span / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`
+}
+
 function formatWindow(incident: Incident): string {
   return `${formatDateTime(incident.window_start)} → ${formatClock(incident.window_end)}`
 }
@@ -329,7 +341,7 @@ function IncidentComposer({
         <h1>Open an incident window</h1>
         <button type="button" className="button button-small" onClick={onCancel} disabled={busy}>Cancel</button>
       </div>
-      <p className="incident-compose-copy">Use a recorded window. The 15 minutes before the start become the baseline; the suspect region is the earliest connected anomaly, not a root cause.</p>
+      <p className="incident-compose-copy">Use a recorded window. The 15 minutes before the start become the baseline and stay visible before the incident on the timeline; the suspect region is the earliest connected anomaly, not a root cause.</p>
       <div className="incident-compose-grid">
         <form onSubmit={(event) => void submit(event)}>
           <div className="incident-form-grid">
@@ -562,27 +574,61 @@ function IncidentDetail({
   )
 }
 
-// The timeline is a continuous error-rate field. The ramp runs from paper
-// gray through brand blue and teal to rust; the mapping is sqrt-shaped so a
-// low background error is still visible without making every sample hot.
+// The timeline is a continuous error-rate field. The ramp runs from green
+// through amber to rust; the mapping is shaped so a low background error is
+// still visible without making every sample hot.
 const ERROR_RAMP: Array<{ t: number; rgb: [number, number, number] }> = [
-  { t: 0, rgb: [232, 232, 232] },
-  { t: 0.12, rgb: [228, 241, 246] },
-  { t: 0.3, rgb: [168, 208, 224] },
-  { t: 0.48, rgb: [76, 153, 164] },
-  { t: 0.64, rgb: [176, 42, 0] },
-  { t: 0.82, rgb: [138, 31, 0] },
-  { t: 1, rgb: [110, 24, 0] },
+  { t: 0, rgb: [74, 128, 102] },
+  { t: 0.12, rgb: [91, 143, 112] },
+  { t: 0.3, rgb: [155, 151, 103] },
+  { t: 0.5, rgb: [179, 124, 71] },
+  { t: 0.7, rgb: [166, 72, 47] },
+  { t: 0.86, rgb: [139, 38, 26] },
+  { t: 1, rgb: [100, 24, 17] },
 ]
 
+function frameTraffic(frame: TimelineFrame): { requests: number; errors: number } {
+  return frame.edges.reduce(
+    (total, edge) => ({
+      requests: total.requests + edge.requests,
+      errors: total.errors + edge.status_4xx + edge.status_5xx,
+    }),
+    { requests: 0, errors: 0 },
+  )
+}
+
 function errorRateOf(frame: TimelineFrame): number {
-  const requests = frame.edges.reduce((total, edge) => total + edge.requests, 0)
-  const errors = frame.edges.reduce((total, edge) => total + edge.status_4xx + edge.status_5xx, 0)
+  const { requests, errors } = frameTraffic(frame)
   return requests > 0 ? errors / requests : 0
 }
 
-function errorColor(rate: number): string {
-  const t = Math.min(1, Math.pow(Math.max(0, rate), 0.7))
+// A zero-request bucket is a sampling gap, not evidence of a healthy system.
+// Inside a sampled run, hold the adjacent observed state so the strip does not
+// turn white in the middle of a red fault. Leading gaps stay unknown; trailing
+// gaps keep the last observed state.
+function effectiveRates(frames: TimelineFrame[]): Array<number | null> {
+  const raw = frames.map(errorRateOf)
+  const sampled = frames.map((frame) => frameTraffic(frame).requests > 0)
+  const result: Array<number | null> = frames.map(() => null)
+  let last: number | null = null
+  for (let index = 0; index < result.length; index += 1) {
+    if (sampled[index]) {
+      last = raw[index]
+      result[index] = last
+    } else if (last !== null) {
+      result[index] = last
+    }
+  }
+  return result
+}
+
+function errorColor(rate: number | null): string {
+  // Green is reserved for a genuinely clean bucket. Any observed error moves
+  // the colour toward amber, and an actual fault reaches red. A leading gap has
+  // no observed state and stays neutral so it cannot be read as healthy.
+  if (rate === null) return 'rgb(232 232 232)'
+  if (rate <= 0) return 'rgb(74 128 102)'
+  const t = Math.min(1, 0.15 + Math.pow(rate, 0.55) * 0.85)
   let lower = ERROR_RAMP[0]
   let upper = ERROR_RAMP[ERROR_RAMP.length - 1]
   for (let index = 1; index < ERROR_RAMP.length; index += 1) {
@@ -602,30 +648,33 @@ function errorColor(rate: number): string {
 // stop: the previous colour is held up to the sample boundary, then the new
 // colour appears at the boundary. Gradual change still blends over the bucket.
 const SPIKE_DELTA = 0.06
-function errorGradient(rates: number[]): string {
+function errorGradient(rates: Array<number | null>): string {
   if (rates.length === 0) return errorColor(0)
   if (rates.length === 1) return errorColor(rates[0])
   const stops: string[] = []
   const last = rates.length - 1
   for (let index = 0; index < rates.length; index += 1) {
     const at = (index / last) * 100
-    const color = errorColor(rates[index])
+    const rate = rates[index]
+    const color = errorColor(rate)
     if (index > 0) {
       const previous = rates[index - 1]
-      const previousAt = ((index - 1) / last) * 100
-      const rise = rates[index] - previous
-      const spike = rise >= SPIKE_DELTA
-        || (rates[index] >= 0.2 && previous < 0.08)
-      if (spike) {
-        // An aggressive rise snaps: hold the previous colour to the sample
-        // boundary, then show the new colour at the boundary.
-        stops.push(`${errorColor(previous)} ${(at - 0.5).toFixed(2)}%`)
-      } else {
-        // A fall or a gradual change follows the ramp across the bucket.
-        for (const fraction of [0.25, 0.5, 0.75]) {
-          const rate = previous + (rates[index] - previous) * fraction
-          const point = previousAt + (at - previousAt) * fraction
-          stops.push(`${errorColor(rate)} ${point.toFixed(2)}%`)
+      if (previous !== null && rate !== null) {
+        const previousAt = ((index - 1) / last) * 100
+        const rise = rate - previous
+        const spike = rise >= SPIKE_DELTA
+          || (rate >= 0.2 && previous < 0.08)
+        if (spike) {
+          // An aggressive rise snaps: hold the previous colour to the sample
+          // boundary, then show the new colour at the boundary.
+          stops.push(`${errorColor(previous)} ${(at - 0.5).toFixed(2)}%`)
+        } else {
+          // A fall or a gradual change follows the ramp across the bucket.
+          for (const fraction of [0.25, 0.5, 0.75]) {
+            const blended = previous + (rate - previous) * fraction
+            const point = previousAt + (at - previousAt) * fraction
+            stops.push(`${errorColor(blended)} ${point.toFixed(2)}%`)
+          }
         }
       }
     }
@@ -659,16 +708,45 @@ function TimelineScrubber({
     return (
       <section className="incident-panel scrubber-panel">
         <div className="section-heading"><h3>Timeline</h3><span className="mono muted-copy">no samples</span></div>
-        <p className="scrubber-empty">No 5-second samples in this window. Recompute after traffic has been recorded.</p>
+        <p className="scrubber-empty">No 5-second samples in this playback window. Recompute after traffic has been recorded.</p>
       </section>
     )
   }
   const last = timeline.frames.length - 1
   const safePosition = Math.max(0, Math.min(position, last))
   const current = frame ?? timeline.frames[Math.round(safePosition)]
-  const rates = timeline.frames.map(errorRateOf)
+  const hasSamples = timeline.frames.some((item) => frameTraffic(item).requests > 0)
+  if (!hasSamples) {
+    return (
+      <section className="incident-panel scrubber-panel">
+        <div className="section-heading"><h3>Timeline</h3><span className="mono muted-copy">no samples</span></div>
+        <p className="scrubber-empty">No suspect-edge samples in this playback window. The incident may predate history or have no traffic.</p>
+      </section>
+    )
+  }
+  const rates = effectiveRates(timeline.frames)
   const gradient = errorGradient(rates)
   const currentRate = current ? errorRateOf(current) : 0
+  const currentSampled = current ? frameTraffic(current).requests > 0 : false
+  const context = timeline.context ?? {
+    start: timeline.frames[0]?.at ?? timeline.window.start,
+    end: timeline.window.end,
+  }
+  const contextStart = new Date(context.start).getTime()
+  const contextEnd = new Date(context.end).getTime()
+  const incidentStart = new Date(timeline.window.start).getTime()
+  const contextLength = Math.max(1, contextEnd - contextStart)
+  const incidentLeft = Math.max(0, Math.min(100, ((incidentStart - contextStart) / contextLength) * 100))
+  const hasPreIncident = incidentStart > contextStart
+  const currentBeforeIncident = new Date(current.at).getTime() < incidentStart
+  const severity = !currentSampled
+    ? 'unknown'
+    : currentRate <= 0
+      ? 'clear'
+      : currentRate < 0.2
+        ? 'elevated'
+        : 'fault'
+  const stateLabel = `${currentBeforeIncident ? 'Pre-incident' : 'Incident'} · ${currentSampled ? `${formatErrorRate(currentRate)} errors` : 'no sample'}`
   const progress = last <= 0 ? 0 : (safePosition / last) * 100
 
   const onScrubKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -683,14 +761,26 @@ function TimelineScrubber({
     event.preventDefault()
     onPositionChange(Math.max(0, Math.min(last, next)))
   }
+  const trackTitle = `Error rate from ${formatClock(context.start)} to ${formatClock(context.end)}.`
+    + `${hasPreIncident ? ` Incident starts ${formatClock(timeline.window.start)}.` : ''}`
+    + ' Green = no errors, amber = elevated, red = fault. Sampling gaps inherit the adjacent state.'
   return (
     <section className="incident-panel scrubber-panel">
       <div className="section-heading">
-        <h3>Timeline</h3>
-        <span className="mono muted-copy">{formatDateTime(current.at)} · {timeline.bucket_seconds}s samples · error rate</span>
+        <div className="scrubber-heading">
+          <h3>Timeline</h3>
+          <span className={`scrubber-mode is-${severity}`}>
+            <i className="scrubber-mode-mark" aria-hidden="true" />
+            {stateLabel}
+          </span>
+        </div>
+        <span className="mono muted-copy">{formatDateTime(current.at)} · {timeline.bucket_seconds}s samples</span>
       </div>
-      <div className="scrubber-track" title="Error-rate gradient: calm to high">
+      <div className="scrubber-track" title={trackTitle}>
         <div className="scrubber-heat" style={{ background: gradient }} aria-hidden="true" />
+        {hasPreIncident && incidentLeft > 0 && incidentLeft < 100 ? (
+          <span className="scrubber-incident-boundary" style={{ left: `${incidentLeft}%` }} aria-hidden="true" />
+        ) : null}
         <span className="scrubber-playhead" style={{ left: `clamp(4px, ${progress}%, calc(100% - 4px))` }} aria-hidden="true" />
         <input
           type="range"
@@ -699,15 +789,32 @@ function TimelineScrubber({
           value={safePosition}
           step={0.001}
           aria-label="Incident timeline"
-          aria-valuetext={`${formatClock(current.at)}, ${timeline.bucket_seconds} second samples, ${formatErrorRate(currentRate)} errors`}
+          aria-valuetext={`${formatClock(current.at)}, ${currentBeforeIncident ? 'pre-incident' : 'incident'}, ${timeline.bucket_seconds} second samples, ${currentSampled ? `${formatErrorRate(currentRate)} errors` : 'no sample'}`}
           onChange={(event) => onPositionChange(Number(event.target.value))}
           onKeyDown={onScrubKeyDown}
         />
       </div>
       <div className="scrubber-labels">
-        <span>{formatClock(timeline.window.start)}</span>
+        <span>{formatClock(context.start)}</span>
         <strong>{formatClock(current.at)}</strong>
-        <span>{formatClock(timeline.window.end)}</span>
+        <span>{formatClock(context.end)}</span>
+      </div>
+      {hasPreIncident ? (
+        <div className="scrubber-bands">
+          <span title={`${formatDateTime(context.start)} → ${formatDateTime(timeline.window.start)}`}>
+            Pre-incident · {formatSpan(context.start, timeline.window.start)}
+          </span>
+          <span title={`${formatDateTime(timeline.window.start)} → ${formatDateTime(timeline.window.end)}`}>
+            Incident · {formatSpan(timeline.window.start, timeline.window.end)}
+          </span>
+        </div>
+      ) : null}
+      <div className="scrubber-legend" aria-label="Timeline colour legend">
+        <span><i className="scrubber-swatch scrubber-swatch-clear" />Clear</span>
+        <span><i className="scrubber-swatch scrubber-swatch-elevated" />Elevated</span>
+        <span><i className="scrubber-swatch scrubber-swatch-fault" />Fault</span>
+        <span><i className="scrubber-swatch scrubber-swatch-unknown" />No sample</span>
+        <span className="muted-copy">Gaps in a run inherit adjacent state</span>
       </div>
     </section>
   )
@@ -922,8 +1029,9 @@ function OnsetTimeline({
   const start = new Date(evidence.window.start).getTime()
   const end = new Date(evidence.window.end).getTime()
   const span = Math.max(1, end - start)
-  const currentLeft = activeAt
-    ? Math.min(100, Math.max(0, ((new Date(activeAt).getTime() - start) / span) * 100))
+  const currentAt = activeAt ? new Date(activeAt).getTime() : null
+  const currentLeft = currentAt !== null && currentAt >= start && currentAt <= end
+    ? ((currentAt - start) / span) * 100
     : null
   return (
     <section className="incident-panel onset-panel">

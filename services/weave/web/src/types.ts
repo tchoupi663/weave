@@ -218,7 +218,11 @@ export interface TimelineFrame {
 }
 
 export interface IncidentTimeline {
+  // The incident's own window.
   window: IncidentTimeRange
+  // The playback span: the incident baseline through the incident window end.
+  // Optional for compatibility with an older API response.
+  context?: IncidentTimeRange
   bucket_seconds: number
   suspect_edges: string[]
   frames: TimelineFrame[]

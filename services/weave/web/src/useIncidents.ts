@@ -70,7 +70,7 @@ export function useIncidents(active: boolean) {
     }
     let current = true
     setChangesLoading(true)
-    void fetchChanges(incident.window_start, incident.window_end)
+    void fetchChanges(incident.baseline_start, incident.window_end)
       .then((next) => {
         if (current) setChanges(next)
       })

@@ -25,6 +25,9 @@
   --ok: #145439;
   --focus: #0a6190;
   --highlight: #4c99a4;
+  --timeline-clear: #4a8066;
+  --timeline-elevated: #b37c47;
+  --timeline-fault: #8b261a;
   --shadow: 0 1px 2px #0a11140f, 0 8px 24px #0a111414;
   --shadow-raised: 0 1px 2px #0a111414, 0 1px 3px #0a11140d;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -4095,4 +4098,125 @@ button:disabled {
     padding: 16px;
     border: 1px solid var(--line);
   }
+}
+
+/* Timeline severity legend: green is clear, amber is elevated, red is a fault. */
+.scrubber-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin-top: 8px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.scrubber-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.scrubber-swatch {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+}
+
+.scrubber-swatch-clear {
+  background: var(--timeline-clear);
+}
+
+.scrubber-swatch-elevated {
+  background: var(--timeline-elevated);
+}
+
+.scrubber-swatch-fault {
+  background: var(--timeline-fault);
+}
+
+.scrubber-swatch-unknown {
+  border: 1px solid var(--line-strong);
+  background: var(--surface-3);
+}
+
+
+/* The timeline starts before the incident. These mark the healthy baseline,
+   the transition boundary, and the moment under the playhead. */
+.scrubber-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.scrubber-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.scrubber-mode-mark {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 1px;
+  background: var(--line-strong);
+}
+
+.scrubber-mode.is-clear .scrubber-mode-mark {
+  background: var(--timeline-clear);
+}
+
+.scrubber-mode.is-elevated .scrubber-mode-mark {
+  background: var(--timeline-elevated);
+}
+
+.scrubber-mode.is-fault .scrubber-mode-mark {
+  background: var(--timeline-fault);
+}
+
+.scrubber-incident-boundary {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 2px;
+  background: var(--bg);
+  opacity: 0.85;
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+
+.scrubber-bands {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.scrubber-bands > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scrubber-panel .section-heading {
+  flex-wrap: wrap;
 }

@@ -79,8 +79,9 @@ edges. The diagnosis is a suspect region, not a root cause.
   rate is at least 2× baseline and at least +5 percentage points, or when p95 is
   at least 2× baseline and at least +5 ms. The suspect region is the earliest
   connected anomalous region, not a root cause.
-- The incident timeline is a 5-second scrub over suspect-edge frames. It is not
-  a full historical topology reconstruction.
+- The incident timeline is a 5-second scrub over suspect-edge frames. It starts
+  at the 15-minute baseline so the transition from normal to affected is
+  visible. It is not a full historical topology reconstruction.
 - The declared source is Argo CD. Weave does not gain Kubernetes API RBAC.
 - No authentication in this slice. The surface is internal and reached through
   a local port-forward.

@@ -112,13 +112,38 @@ func TestIncidentTimelineReturnsSuspectBuckets(t *testing.T) {
 	if len(timeline.Frames) < 5 || timeline.BucketSeconds != 5 {
 		t.Fatalf("timeline = %d frames at %ds", len(timeline.Frames), timeline.BucketSeconds)
 	}
+	if !timeline.Window.Start.Equal(incident.WindowStart) || !timeline.Window.End.Equal(incident.WindowEnd) {
+		t.Fatalf("timeline incident window = %+v, want %+v", timeline.Window, incident.Evidence.Window)
+	}
+	if !timeline.Context.End.Equal(incident.WindowEnd) {
+		t.Fatalf("timeline context end = %s, want %s", timeline.Context.End, incident.WindowEnd)
+	}
+	if timeline.Context.Start.After(incident.BaselineStart) {
+		t.Fatalf("timeline context start = %s, want at or before baseline %s", timeline.Context.Start, incident.BaselineStart)
+	}
 	found := false
+	preIncidentFrames := 0
+	preIncidentSample := false
 	for _, frame := range timeline.Frames {
+		if frame.At.Before(incident.WindowStart) {
+			preIncidentFrames++
+			for _, edge := range frame.Edges {
+				if edge.Requests > 0 && edge.Status5xx == 0 {
+					preIncidentSample = true
+				}
+			}
+		}
 		for _, edge := range frame.Edges {
 			if edge.Status5xx > 0 && edge.ErrorRate == 1 && edge.Anomaly {
 				found = true
 			}
 		}
+	}
+	if preIncidentFrames < 180 {
+		t.Fatalf("pre-incident frames = %d, want at least the 15-minute baseline", preIncidentFrames)
+	}
+	if !preIncidentSample {
+		t.Fatal("expected a clean pre-incident sample in the timeline")
 	}
 	if !found {
 		t.Fatal("expected an anomalous 500 bucket in the timeline")

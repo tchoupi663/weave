@@ -50,11 +50,14 @@ surface tone, not from shadows.
 | `brand` | `#0a6190` | Hub, selection, links, focus |
 | `brand-deep` | `#014063` | Brand hover, active edge |
 | `brand-soft` | `#e4f1f6` | Selected row, quiet accent fill |
-| `brand-line` | `#a8d0e0` | Accent hairline, low error field |
+| `brand-line` | `#a8d0e0` | Accent hairline |
 | `indigo` | `#3b4fd0` | Data role, secondary signal |
 | `success` | `#145439` | Healthy status, external role |
-| `danger` | `#b02a00` | Error text, severe field |
-| `highlight` | `#4c99a4` | Elevated error, activity mid-ramp |
+| `danger` | `#b02a00` | Error text |
+| `highlight` | `#4c99a4` | Activity mid-ramp |
+| `timeline-clear` | `#4a8066` | A sampled timeline bucket with no errors |
+| `timeline-elevated` | `#b37c47` | An elevated error rate on the timeline |
+| `timeline-fault` | `#8b261a` | A faulted timeline bucket |
 
 Graph roles:
 
@@ -69,8 +72,9 @@ Graph roles:
 
 Two ramps only:
 
-**Error field** (timeline): calm `#e8e8e8` → low `#e4f1f6` → moderate
-`#a8d0e0` → elevated `#4c99a4` → high `#b02a00` → severe `#6e1800`.
+**Error field** (timeline): no sample `#e8e8e8`, then clear `#4a8066` →
+elevated `#b37c47` → fault `#8b261a` → severe `#641811`. Green is reserved for
+a sampled bucket with no errors; a leading gap is neutral, not green.
 
 **Activity heat** (bucketed activity strips): `#f2f2f2`, `#e4f1f6`, `#a8d0e0`,
 `#4c99a4`, `#8a5a3a`, `#b02a00`.
@@ -275,10 +279,15 @@ from its own bounded node set; it does not get a separate static canvas.
 
 The timeline is a **field**, not a row of cells.
 
-- Compute the error rate per sample (errors ÷ requests; empty samples are
-  calm). Draw one horizontal CSS gradient across the full track.
-- Ramp: calm gray → low blue → moderate teal → elevated teal → high rust →
-  severe dark rust. The ramp is semantic; do not use a rainbow.
+- Compute the error rate per sample (errors ÷ requests). Draw one horizontal
+  CSS gradient across the playback context, from the incident baseline through
+  the incident window.
+- An empty sample is not calm. Inside a sampled run, hold the adjacent observed
+  state; a leading gap with no observed state stays neutral and reads
+  `No sample`.
+- Ramp: clear green → elevated amber → fault rust → severe dark rust. The ramp
+  is semantic; do not use a rainbow. Green is reserved for a sampled bucket
+  with no errors.
 - **Aggressive rises snap.** A rise of 6 percentage points or more, or a jump
   from below 8% to 20%+, gets a hard stop at the sample boundary: hold the
   previous color to `boundary − 0.5%`, then place the new color at the
@@ -290,12 +299,15 @@ The timeline is a **field**, not a row of cells.
   display; rates and latency may be fractional.
 - Playhead: 2 px ink line, 8 px squircle thumb with a 1 px ink ring.
 - Keyboard: arrows move one sample; PageUp/PageDown move five; Home/End jump
-  to the ends. The range input carries `aria-valuetext` with the clock and the
-  sampled error rate.
-- Label the field with the section eyebrow and the mono line
-  `time · Ns samples · error rate`. Do not require a legend to explain a
-  two-color field, but never rely on color alone: the rate is also written in
-  the detail panel.
+  to the ends of the playback context. The range input carries `aria-valuetext`
+  with the clock, the `Pre-incident` or `Incident` state, and the sampled error
+  rate.
+- Start the playback at the incident baseline. Mark the incident boundary and
+  label the pre-incident and incident bands. Write the current moment as
+  `Pre-incident` or `Incident` with its error rate; never rely on color alone.
+- Label the field with the section eyebrow, the current state and rate, and the
+  source line `time · Ns samples`. The rate is also written in the detail
+  panel.
 
 ## Motion
 
@@ -367,7 +379,8 @@ A screen is on-system when it has:
 - a 32/22/17/15/13/12 type hierarchy with mono eyebrows and mono data;
 - circular graph nodes and squircle everything else;
 - edge titles that sit off the thread with no plate;
-- a gradient event timeline with hard rises and continuous readout;
+- a gradient event timeline that starts at the pre-incident baseline, marks the
+  incident boundary, and keeps hard rises and continuous readout;
 - one graph component shared by live and history;
 - focus rings, keyboard paths, reduced motion, and no color-only status;
 - no unnecessary chrome: no KPI cards, no ribbons, no decorative grid.

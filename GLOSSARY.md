@@ -174,7 +174,7 @@ The Operator workspace for one Incident: timeline scrubber, suspect-region graph
 _Avoid_: incident dashboard, alert page.
 
 **Timeline**:
-The Incident View's scrub control over the Incident Window. It is made of recorded metric frames, not a recorded video or a full historical graph.
+The Incident View's scrub control over the Incident Window and its Baseline Window. It starts at the baseline so the transition from normal to affected is visible. It is made of recorded metric frames, not a recorded video or a full historical graph.
 _Avoid_: playback, replay video, animation.
 
 **Timeline Frame**:

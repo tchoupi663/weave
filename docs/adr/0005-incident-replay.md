@@ -86,10 +86,12 @@ Frontend Service type.
   single root cause.
 - Route detail (`method` + normalized path) is supporting evidence; route-level
   anomalies are not first-class in this slice.
-- Default incident view: scrub timeline, suspect-region canvas, onset/evidence
-  strip, a compact lifecycle change strip, and a live-topology link. Minimal
-  controls: timeline scrub, note, close/reopen. The full historical graph at an
-  arbitrary `at` timestamp is deferred; the live link opens the current graph.
+- Default incident view: a scrub timeline that starts at the baseline and marks
+  the transition into the incident window, a suspect-region canvas,
+  onset/evidence strip, a compact lifecycle change strip, and a live-topology
+  link. Minimal controls: timeline scrub, note, close/reopen. The full
+  historical graph at an arbitrary `at` timestamp is deferred; the live link
+  opens the current graph.
 - No separate architecture-evolution screen and no Agent UI in this slice.
 
 ### API and consumers
@@ -125,9 +127,9 @@ Frontend Service type.
 
 Implemented: persisted incidents and evidence snapshots; SQLite/DuckDB history;
 Argo-read-only lifecycle reconciliation; 5-second/1-minute retention; manual
-incident creation; suspect-region localization; per-incident 5-second timeline
-frames; Operator workspace; Chaos Mesh fault fixture; read-only Agent-style
-REST resources.
+incident creation; suspect-region localization; per-incident timeline frames
+from the baseline through the incident window; Operator workspace; Chaos Mesh
+fault fixture; read-only Agent-style REST resources.
 
 Deferred: full historical topology reconstruction at `at=...`; route-level
 anomalies; architecture/telemetry evolution screens; authentication; Agent UI.
