@@ -45,6 +45,20 @@ The chart needs no Kubernetes API permissions. It reads only the Target App's
 observed flows, plus its own pod metadata from Hubble. It does not install
 network policies, mutate the Target App, or read the expected topology.
 
+The chart creates a 2 GiB `weave-data` PVC and mounts it at `/data`. SQLite and
+DuckDB are single-writer stores, so the Deployment uses the `Recreate` strategy;
+do not scale Weave above one replica. `persistence.accessMode` defaults to
+`ReadWriteOnce` and can be set to `ReadWriteOncePod` on storage classes that
+support it.
+
+Weave also needs a read-only Argo CD token to read the declared workload
+inventory. Create the `weave-argocd-token` secret as described in
+[`platform/argocd/README.md`](platform/argocd/README.md) before deploying. Weave
+still has no Kubernetes API RBAC.
+
+The Weave image builds with CGO because DuckDB is embedded. It uses a Debian
+build/runtime image, not a static Alpine binary.
+
 Weave also exposes `POST /v1/traces` for OTLP HTTP/protobuf spans. Install the
 Beyla platform addon after Weave so the spans have a receiver:
 
@@ -63,6 +77,12 @@ a privileged eBPF DaemonSet and does not insert a proxy into the Target App.
 Weave attaches those spans to the matching L4 edges. See
 `deploy/platform/observability/README.md` and
 `docs/adr/0004-l7-observability.md`.
+
+The incident acceptance run additionally needs Chaos Mesh. The fixture and
+ordering are in [`platform/chaos/`](platform/chaos/) and
+[`../docs/acceptance.md`](../docs/acceptance.md). The fixture is applied after
+the 15-minute baseline and deleted after two minutes; the Target App is not
+modified.
 
 ## Rendering without a cluster
 

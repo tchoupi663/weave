@@ -74,8 +74,10 @@ Frontend Service type.
 - An Incident is not an alert and not an anomaly.
 - Baseline: the 15 minutes before the Incident Window.
 - Anomaly: 4xx or 5xx rate at least 2× baseline and at least +5 percentage
-  points, or latency p95 at least 2× baseline. L4-only edges contribute
-  connectivity and traffic evidence, not HTTP error rates.
+  points, or latency p95 at least 2× baseline and at least +5 ms absolute.
+  The absolute latency floor prevents a tiny high-relative wobble from becoming
+  a suspect. L4-only edges contribute connectivity and traffic evidence, not
+  HTTP error rates.
 - Localization: find the earliest anomalous 5-second bucket; seed the suspect
   region with those edges; expand through connected anomalous edges. Ties
   within one bucket stay in the region. Order by onset, then severity, then
@@ -84,9 +86,10 @@ Frontend Service type.
   single root cause.
 - Route detail (`method` + normalized path) is supporting evidence; route-level
   anomalies are not first-class in this slice.
-- Default incident view: suspect-region canvas, onset/evidence timeline, a
-  compact lifecycle change strip, and expandable full graph. Minimal controls:
-  timeline scrub, expand neighbourhood, note, close/reopen.
+- Default incident view: scrub timeline, suspect-region canvas, onset/evidence
+  strip, a compact lifecycle change strip, and a live-topology link. Minimal
+  controls: timeline scrub, note, close/reopen. The full historical graph at an
+  arbitrary `at` timestamp is deferred; the live link opens the current graph.
 - No separate architecture-evolution screen and no Agent UI in this slice.
 
 ### API and consumers
@@ -97,7 +100,7 @@ Frontend Service type.
   - `GET /api/incidents/{id}`
   - `PATCH /api/incidents/{id}`
   - `POST /api/incidents/{id}/recompute`
-  - `GET /api/topology?at=...`
+  - `GET /api/incidents/{id}/timeline`
   - `GET /api/changes?from=...&to=...`
 - No authentication in this slice; the API is internal/port-forward only. Add a
   token before an Agent leaves that boundary.
@@ -117,6 +120,29 @@ Frontend Service type.
   (no dashboard). Target App is reinstalled through Argo from
   `deploy/envs/local`, replacing the manual Helm release. Orders Postgres data
   may be discarded. Weave and Beyla remain platform releases.
+
+## Implementation status
+
+Implemented: persisted incidents and evidence snapshots; SQLite/DuckDB history;
+Argo-read-only lifecycle reconciliation; 5-second/1-minute retention; manual
+incident creation; suspect-region localization; per-incident 5-second timeline
+frames; Operator workspace; Chaos Mesh fault fixture; read-only Agent-style
+REST resources.
+
+Deferred: full historical topology reconstruction at `at=...`; route-level
+anomalies; architecture/telemetry evolution screens; authentication; Agent UI.
+
+Known deviation from the generic-topology decision: the live filter still drops
+host/probe traffic to non-Frontend workloads and still uses the fixture display
+names and `external` role literal. The incident path is correct for the
+evaluated app edges, but the all-connection host/probe acceptance remains
+implementation work outside this acceptance run.
+
+The 2026-11-14 acceptance passed: the suspect region was
+Frontend → Gateway and Gateway → Catalog, with Catalog, Frontend, and Gateway as
+nodes; Auth and Payment were outside. The incident, evidence, and 24-frame
+timeline survived a Weave restart with identical hashes. The full record is in
+[`docs/acceptance.md`](../acceptance.md).
 
 ## Consequences
 

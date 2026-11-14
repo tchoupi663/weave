@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { formatClock, formatCount, formatDateTime } from '../format'
+import { GRAPH_HEIGHT, GRAPH_WIDTH } from '../layout'
+import { NetworkGraph, type NetworkEdge, type NetworkNode } from './NetworkGraph'
 import type {
   ChangeEvent,
   CreateIncidentInput,
@@ -43,7 +45,12 @@ function formatWindow(incident: Incident): string {
 }
 
 function compactWindow(incident: Incident): string {
-  return `${formatDateTime(incident.window_start)} – ${formatClock(incident.window_end)}`
+  const start = new Date(incident.window_start)
+  const end = new Date(incident.window_end)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '—'
+  const day = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(start)
+  const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return `${day} · ${clock.format(start)}–${clock.format(end)}`
 }
 
 function nodeName(snapshot: Snapshot | null, workload: string): string {
@@ -227,7 +234,7 @@ function IncidentRail({
               <span className={`incident-status-dot status-${item.status}`} aria-hidden="true" />
               <span className="incident-item-main">
                 <span className="incident-item-title">{item.symptom || 'Untitled incident'}</span>
-                <span className="incident-item-meta">{compactWindow(item)}</span>
+                <span className="incident-item-meta" title={formatWindow(item)}>{compactWindow(item)}</span>
               </span>
               <span className="incident-item-status">{item.status === 'open' ? 'Open' : 'Closed'}</span>
             </button>
@@ -383,6 +390,47 @@ function IncidentComposer({
   )
 }
 
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * t
+}
+
+// Scrubbing is continuous: between two 5-second buckets the sampled values
+// are interpolated, so the playhead, labels, evidence and onset all move
+// smoothly instead of stepping.
+function interpolateFrame(timeline: IncidentTimeline | null, position: number): TimelineFrame | null {
+  if (!timeline || timeline.frames.length === 0) return null
+  const last = timeline.frames.length - 1
+  const clamped = Math.min(last, Math.max(0, position))
+  const lower = Math.floor(clamped)
+  const upper = Math.min(last, lower + 1)
+  const t = clamped - lower
+  const a = timeline.frames[lower]
+  const b = timeline.frames[upper]
+  if (lower === upper || t === 0) return a
+  const at = new Date(
+    new Date(a.at).getTime() + (new Date(b.at).getTime() - new Date(a.at).getTime()) * t,
+  ).toISOString()
+  const right = new Map(b.edges.map((edge) => [edge.edge_id, edge]))
+  return {
+    at,
+    edges: a.edges.map((left) => {
+      const next = right.get(left.edge_id) ?? left
+      const requests = Math.round(lerp(left.requests, next.requests, t))
+      const status_4xx = Math.round(lerp(left.status_4xx, next.status_4xx, t))
+      const status_5xx = Math.round(lerp(left.status_5xx, next.status_5xx, t))
+      return {
+        edge_id: left.edge_id,
+        requests,
+        status_4xx,
+        status_5xx,
+        error_rate: requests > 0 ? (status_4xx + status_5xx) / requests : 0,
+        p95_ms: lerp(left.p95_ms, next.p95_ms, t),
+        anomaly: t < 0.5 ? left.anomaly : next.anomaly,
+      }
+    }),
+  }
+}
+
 function IncidentDetail({
   snapshot,
   incident,
@@ -406,7 +454,7 @@ function IncidentDetail({
 }) {
   const evidence = incident.evidence
   const [selectedEdge, setSelectedEdge] = useState<string | null>(evidence.suspect_edges[0] ?? null)
-  const [frameIndex, setFrameIndex] = useState(-1)
+  const [framePosition, setFramePosition] = useState(0)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -416,7 +464,7 @@ function IncidentDetail({
 
   useEffect(() => {
     if (!timeline || timeline.frames.length === 0) {
-      setFrameIndex(-1)
+      setFramePosition(0)
       return
     }
     const onsets = evidence.edges
@@ -425,14 +473,14 @@ function IncidentDetail({
       .sort((left, right) => left - right)
     const target = onsets[0]
     if (target === undefined) {
-      setFrameIndex(timeline.frames.length - 1)
+      setFramePosition(timeline.frames.length - 1)
       return
     }
     const index = timeline.frames.findIndex((frame) => new Date(frame.at).getTime() >= target)
-    setFrameIndex(index >= 0 ? index : timeline.frames.length - 1)
+    setFramePosition(index >= 0 ? index : timeline.frames.length - 1)
   }, [incident.id, timeline, evidence.edges])
 
-  const activeFrame = frameIndex >= 0 && timeline ? timeline.frames[frameIndex] ?? null : null
+  const activeFrame = interpolateFrame(timeline, framePosition)
 
   const patch = async (next: { status?: string; notes?: string }) => {
     setBusy(true)
@@ -487,8 +535,9 @@ function IncidentDetail({
           <TimelineScrubber
             timeline={timeline}
             loading={timelineLoading}
-            frameIndex={frameIndex}
-            onFrameChange={setFrameIndex}
+            frame={activeFrame}
+            position={framePosition}
+            onPositionChange={setFramePosition}
           />
           <SuspectCanvas
             snapshot={snapshot}
@@ -513,16 +562,90 @@ function IncidentDetail({
   )
 }
 
+// The timeline is a continuous error-rate field. The ramp runs from paper
+// gray through brand blue and teal to rust; the mapping is sqrt-shaped so a
+// low background error is still visible without making every sample hot.
+const ERROR_RAMP: Array<{ t: number; rgb: [number, number, number] }> = [
+  { t: 0, rgb: [232, 232, 232] },
+  { t: 0.12, rgb: [228, 241, 246] },
+  { t: 0.3, rgb: [168, 208, 224] },
+  { t: 0.48, rgb: [76, 153, 164] },
+  { t: 0.64, rgb: [176, 42, 0] },
+  { t: 0.82, rgb: [138, 31, 0] },
+  { t: 1, rgb: [110, 24, 0] },
+]
+
+function errorRateOf(frame: TimelineFrame): number {
+  const requests = frame.edges.reduce((total, edge) => total + edge.requests, 0)
+  const errors = frame.edges.reduce((total, edge) => total + edge.status_4xx + edge.status_5xx, 0)
+  return requests > 0 ? errors / requests : 0
+}
+
+function errorColor(rate: number): string {
+  const t = Math.min(1, Math.pow(Math.max(0, rate), 0.7))
+  let lower = ERROR_RAMP[0]
+  let upper = ERROR_RAMP[ERROR_RAMP.length - 1]
+  for (let index = 1; index < ERROR_RAMP.length; index += 1) {
+    if (t <= ERROR_RAMP[index].t) {
+      lower = ERROR_RAMP[index - 1]
+      upper = ERROR_RAMP[index]
+      break
+    }
+  }
+  const span = upper.t - lower.t || 1
+  const mix = Math.min(1, Math.max(0, (t - lower.t) / span))
+  const rgb = lower.rgb.map((channel, index) => Math.round(channel + (upper.rgb[index] - channel) * mix))
+  return `rgb(${rgb[0]} ${rgb[1]} ${rgb[2]})`
+}
+
+// A sharp move (six points or a jump in/out of a high-error band) gets a hard
+// stop: the previous colour is held up to the sample boundary, then the new
+// colour appears at the boundary. Gradual change still blends over the bucket.
+const SPIKE_DELTA = 0.06
+function errorGradient(rates: number[]): string {
+  if (rates.length === 0) return errorColor(0)
+  if (rates.length === 1) return errorColor(rates[0])
+  const stops: string[] = []
+  const last = rates.length - 1
+  for (let index = 0; index < rates.length; index += 1) {
+    const at = (index / last) * 100
+    const color = errorColor(rates[index])
+    if (index > 0) {
+      const previous = rates[index - 1]
+      const previousAt = ((index - 1) / last) * 100
+      const rise = rates[index] - previous
+      const spike = rise >= SPIKE_DELTA
+        || (rates[index] >= 0.2 && previous < 0.08)
+      if (spike) {
+        // An aggressive rise snaps: hold the previous colour to the sample
+        // boundary, then show the new colour at the boundary.
+        stops.push(`${errorColor(previous)} ${(at - 0.5).toFixed(2)}%`)
+      } else {
+        // A fall or a gradual change follows the ramp across the bucket.
+        for (const fraction of [0.25, 0.5, 0.75]) {
+          const rate = previous + (rates[index] - previous) * fraction
+          const point = previousAt + (at - previousAt) * fraction
+          stops.push(`${errorColor(rate)} ${point.toFixed(2)}%`)
+        }
+      }
+    }
+    stops.push(`${color} ${at.toFixed(2)}%`)
+  }
+  return `linear-gradient(90deg, ${stops.join(', ')})`
+}
+
 function TimelineScrubber({
   timeline,
   loading,
-  frameIndex,
-  onFrameChange,
+  frame,
+  position,
+  onPositionChange,
 }: {
   timeline: IncidentTimeline | null
   loading: boolean
-  frameIndex: number
-  onFrameChange: (index: number) => void
+  frame: TimelineFrame | null
+  position: number
+  onPositionChange: (position: number) => void
 }) {
   if (loading && !timeline) {
     return (
@@ -540,43 +663,50 @@ function TimelineScrubber({
       </section>
     )
   }
-  const safeIndex = Math.max(0, Math.min(frameIndex, timeline.frames.length - 1))
-  const frame = timeline.frames[safeIndex]
-  const severity = timeline.frames.map((item) => {
-    const requests = item.edges.reduce((total, edge) => total + edge.requests, 0)
-    const errors = item.edges.reduce((total, edge) => total + edge.status_4xx + edge.status_5xx, 0)
-    return requests > 0 ? errors / requests : 0
-  })
-  const max = Math.max(0.01, ...severity)
-  const progress = timeline.frames.length <= 1 ? 0 : (safeIndex / (timeline.frames.length - 1)) * 100
+  const last = timeline.frames.length - 1
+  const safePosition = Math.max(0, Math.min(position, last))
+  const current = frame ?? timeline.frames[Math.round(safePosition)]
+  const rates = timeline.frames.map(errorRateOf)
+  const gradient = errorGradient(rates)
+  const currentRate = current ? errorRateOf(current) : 0
+  const progress = last <= 0 ? 0 : (safePosition / last) * 100
+
+  const onScrubKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    let next: number | null = null
+    if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = last
+    else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') next = safePosition + 1
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') next = safePosition - 1
+    else if (event.key === 'PageUp') next = safePosition - 5
+    else if (event.key === 'PageDown') next = safePosition + 5
+    if (next === null) return
+    event.preventDefault()
+    onPositionChange(Math.max(0, Math.min(last, next)))
+  }
   return (
     <section className="incident-panel scrubber-panel">
       <div className="section-heading">
         <h3>Timeline</h3>
-        <span className="mono muted-copy">{formatDateTime(frame.at)} · {timeline.bucket_seconds}s samples</span>
+        <span className="mono muted-copy">{formatDateTime(current.at)} · {timeline.bucket_seconds}s samples · error rate</span>
       </div>
-      <div className="scrubber-track">
-        <div className="scrubber-heat" aria-hidden="true">
-          {timeline.frames.map((item, index) => {
-            const level = severity[index] === 0 ? 0 : Math.max(1, Math.min(5, Math.ceil((severity[index] / max) * 5)))
-            return <span key={item.at} className={`heat-${level}`} />
-          })}
-        </div>
-        <span className="scrubber-playhead" style={{ left: `${progress}%` }} aria-hidden="true" />
+      <div className="scrubber-track" title="Error-rate gradient: calm to high">
+        <div className="scrubber-heat" style={{ background: gradient }} aria-hidden="true" />
+        <span className="scrubber-playhead" style={{ left: `clamp(4px, ${progress}%, calc(100% - 4px))` }} aria-hidden="true" />
         <input
           type="range"
           min={0}
           max={timeline.frames.length - 1}
-          value={safeIndex}
-          step={1}
+          value={safePosition}
+          step={0.001}
           aria-label="Incident timeline"
-          aria-valuetext={`${formatClock(frame.at)}, ${timeline.bucket_seconds} second samples`}
-          onChange={(event) => onFrameChange(Number(event.target.value))}
+          aria-valuetext={`${formatClock(current.at)}, ${timeline.bucket_seconds} second samples, ${formatErrorRate(currentRate)} errors`}
+          onChange={(event) => onPositionChange(Number(event.target.value))}
+          onKeyDown={onScrubKeyDown}
         />
       </div>
       <div className="scrubber-labels">
         <span>{formatClock(timeline.window.start)}</span>
-        <strong>{formatClock(frame.at)}</strong>
+        <strong>{formatClock(current.at)}</strong>
         <span>{formatClock(timeline.window.end)}</span>
       </div>
     </section>
@@ -673,8 +803,6 @@ function formatErrorRate(value: number): string {
   return `${(value * 100).toFixed(value >= 0.1 ? 0 : 1)}%`
 }
 
-type GraphHover = { kind: 'node' | 'edge'; id: string } | null
-
 function SuspectCanvas({
   snapshot,
   evidence,
@@ -692,76 +820,53 @@ function SuspectCanvas({
     () => evidence.edges.filter((edge) => evidence.suspect_edges.includes(edge.edge_id)),
     [evidence.edges, evidence.suspect_edges],
   )
-  const layout = useMemo(() => suspectLayout(suspects), [suspects])
-  const [positions, setPositions] = useState<Map<string, Point>>(layout)
-  const [hover, setHover] = useState<GraphHover>(null)
-  const svgRef = useRef<SVGSVGElement | null>(null)
-  const drag = useRef<{ name: string; pointerId: number; offsetX: number; offsetY: number } | null>(null)
-  const layoutKey = suspects.map((edge) => edge.edge_id).join('|')
+  const seeds = useMemo(() => suspectLayout(suspects), [suspects])
 
-  useEffect(() => {
-    setPositions(layout)
-    setHover(null)
-  }, [layout, layoutKey])
-
-  const focusEdges = useMemo(() => {
-    if (!hover) return new Set<string>()
-    if (hover.kind === 'edge') return new Set([hover.id])
-    return new Set(suspects.filter((edge) => edge.source === hover.id || edge.target === hover.id).map((edge) => edge.edge_id))
-  }, [hover, suspects])
-  const focusNodes = useMemo(() => {
-    if (!hover) return new Set<string>()
-    if (hover.kind === 'node') return new Set([hover.id])
-    const edge = suspects.find((candidate) => candidate.edge_id === hover.id)
-    return edge ? new Set([edge.source, edge.target]) : new Set<string>()
-  }, [hover, suspects])
-
-  const toGraphPoint = (clientX: number, clientY: number) => {
-    const svg = svgRef.current
-    if (!svg) return { x: 0, y: 0 }
-    const point = svg.createSVGPoint()
-    point.x = clientX
-    point.y = clientY
-    const matrix = svg.getScreenCTM()
-    if (!matrix) return { x: 0, y: 0 }
-    return point.matrixTransform(matrix.inverse())
-  }
-
-  const startNodeDrag = (event: ReactPointerEvent<SVGGElement>, name: string) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.stopPropagation()
-    const point = toGraphPoint(event.clientX, event.clientY)
-    const current = positions.get(name) ?? layout.get(name)
-    if (!current) return
-    event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = {
-      name,
-      pointerId: event.pointerId,
-      offsetX: current.x - point.x,
-      offsetY: current.y - point.y,
+  // The suspect region uses the same force graph as the live topology. The
+  // bounded layered seed is scaled into the shared 1200x640 field.
+  const nodes = useMemo<NetworkNode[]>(() => {
+    const seen = new Set<string>()
+    const result: NetworkNode[] = []
+    for (const edge of suspects) {
+      for (const name of [edge.source, edge.target]) {
+        if (seen.has(name)) continue
+        seen.add(name)
+        const point = seeds.get(name)
+        if (!point) continue
+        const known = snapshot?.nodes.find((node) => node.workload === name)
+        const label = nodeName(snapshot, name)
+        result.push({
+          id: name,
+          label,
+          meta: known?.kind ?? 'workload',
+          role: known?.role ?? 'service',
+          x: point.x * (GRAPH_WIDTH / 760),
+          y: point.y * (GRAPH_HEIGHT / 280),
+          r: 17,
+          ariaLabel: `${label}, ${known?.kind ?? 'workload'}`,
+        })
+      }
     }
-  }
+    return result
+  }, [suspects, seeds, snapshot])
 
-  const moveNodeDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
-    const active = drag.current
-    if (!active || active.pointerId !== event.pointerId) return
-    const point = toGraphPoint(event.clientX, event.clientY)
-    setPositions((current) => {
-      const next = new Map(current)
-      next.set(active.name, {
-        x: Math.min(700, Math.max(60, point.x + active.offsetX)),
-        y: Math.min(222, Math.max(36, point.y + active.offsetY)),
-        layer: current.get(active.name)?.layer ?? 0,
-      })
-      return next
-    })
-  }
-
-  const endNodeDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (!drag.current || drag.current.pointerId !== event.pointerId) return
-    drag.current = null
-  }
+  const edges = useMemo<NetworkEdge[]>(
+    () => suspects.map((edge) => {
+      const metric = suspectMetric(edge, frame)
+      return {
+        id: edge.edge_id,
+        source: edge.source,
+        target: edge.target,
+        title: metric.sampled ? `${formatErrorRate(metric.rate)} errors` : 'no sample',
+        detail: metric.sampled
+          ? `${formatCount(metric.errors)} of ${formatCount(metric.requests)} req`
+          : 'at this moment',
+        detailGap: 18,
+        ariaLabel: `${nodeName(snapshot, edge.source)} to ${nodeName(snapshot, edge.target)}, ${formatErrorRate(metric.rate)} errors, ${formatCount(metric.errors)} errors of ${formatCount(metric.requests)} requests`,
+      }
+    }),
+    [suspects, frame, snapshot],
+  )
 
   if (suspects.length === 0) {
     return (
@@ -785,86 +890,16 @@ function SuspectCanvas({
         <span className="mono muted-copy">{frame ? 'as sampled' : 'window aggregate'} · drag nodes, select a thread</span>
       </div>
       <div className="suspect-canvas">
-        <svg
-          ref={svgRef}
-          viewBox="0 0 760 280"
-          role="group"
-          aria-label="Suspect region graph"
-          className={hover ? 'has-focus' : ''}
-          onPointerMove={moveNodeDrag}
-          onPointerUp={endNodeDrag}
-          onPointerCancel={endNodeDrag}
-        >
-          <defs>
-            <marker id="suspect-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
-              <path d="M0 0 L8 4 L0 8" className="suspect-arrow-head" />
-            </marker>
-          </defs>
-          <g className="suspect-edges">
-            {suspects.map((edge) => {
-              const from = positions.get(edge.source) ?? layout.get(edge.source)
-              const to = positions.get(edge.target) ?? layout.get(edge.target)
-              if (!from || !to) return null
-              const selected = selectedEdge === edge.edge_id
-              const focused = focusEdges.has(edge.edge_id)
-              const dimmed = focusEdges.size > 0 && !focused
-              const metric = suspectMetric(edge, frame)
-              const labelX = (from.x + to.x) / 2
-              const labelY = (from.y + to.y) / 2 - 18
-              return (
-                <g
-                  key={edge.edge_id}
-                  className={`suspect-edge-group${selected ? ' is-selected' : ''}${focused ? ' is-focused' : ''}${dimmed ? ' is-dimmed' : ''}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${edge.source} to ${edge.target}, ${formatErrorRate(metric.rate)} errors, ${formatCount(metric.errors)} errors of ${formatCount(metric.requests)} requests`}
-                  onPointerEnter={() => setHover({ kind: 'edge', id: edge.edge_id })}
-                  onPointerLeave={() => setHover(null)}
-                  onClick={() => onSelectEdge(edge.edge_id)}
-                  onKeyDown={(event: KeyboardEvent<SVGGElement>) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      onSelectEdge(edge.edge_id)
-                    }
-                  }}
-                >
-                  <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="suspect-thread" markerEnd="url(#suspect-arrow)" />
-                  <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="suspect-thread-flow" pathLength={1} />
-                  <rect x={labelX - 76} y={labelY - 19} width={152} height={38} className="suspect-label-bg" />
-                  <text x={labelX} y={labelY - 3} textAnchor="middle" className="suspect-edge-label">
-                    <tspan x={labelX}>{metric.sampled ? `${formatErrorRate(metric.rate)} errors` : 'no sample'}</tspan>
-                    <tspan x={labelX} dy={14}>{metric.sampled ? `${formatCount(metric.errors)} of ${formatCount(metric.requests)} req` : 'at this moment'}</tspan>
-                  </text>
-                </g>
-              )
-            })}
-          </g>
-          <g className="suspect-nodes">
-            {[...positions.entries()].map(([name, point]) => {
-              const known = snapshot?.nodes.find((node) => node.workload === name)
-              const label = nodeName(snapshot, name)
-              const focused = focusNodes.has(name)
-              const dimmed = focusNodes.size > 0 && !focused
-              return (
-                <g
-                  key={name}
-                  transform={`translate(${point.x} ${point.y})`}
-                  className={`suspect-node role-${known?.role ?? 'service'}${focused ? ' is-focused' : ''}${dimmed ? ' is-dimmed' : ''}`}
-                  onPointerDown={(event) => startNodeDrag(event, name)}
-                  onPointerEnter={() => setHover({ kind: 'node', id: name })}
-                  onPointerLeave={() => {
-                    if (!drag.current) setHover(null)
-                  }}
-                >
-                  <circle r={13} className="suspect-node-hit" />
-                  <circle r={10} className="suspect-node-dot" />
-                  <text y={27} textAnchor="middle" className="suspect-node-label">{label}</text>
-                  <text y={42} textAnchor="middle" className="suspect-node-meta">{known?.kind ?? 'workload'}</text>
-                </g>
-              )
-            })}
-          </g>
-        </svg>
+        <NetworkGraph
+          nodes={nodes}
+          edges={edges}
+          selected={selectedEdge ? { kind: 'edge', id: selectedEdge } : null}
+          onSelect={(selection) => {
+            if (selection?.kind === 'edge') onSelectEdge(selection.id)
+          }}
+          ariaLabel="Suspect region graph"
+          keepEdgeTitles
+        />
       </div>
       <p className="incident-panel-note">Drag a node to arrange the region. Select a thread to read its evidence. This is a bounded suspect set, not a root cause.</p>
     </section>

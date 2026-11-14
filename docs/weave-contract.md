@@ -1,7 +1,8 @@
 # Weave topology contract
 
-This is the v1 contract between the Weave engine, its UI, and the future
-benchmark comparator.
+This is the contract between the Weave engine, the Operator UI, and the future
+Agent/benchmark consumers. The live topology contract remains v1; history,
+incidents, and the incident timeline are the v2 incident-replay contract.
 
 ## Runtime
 
@@ -9,9 +10,13 @@ benchmark comparator.
 - It follows `hubble-relay.kube-system.svc.cluster.local:80` over gRPC for L4.
 - It accepts OTLP HTTP/protobuf traces at `POST /v1/traces` from Grafana Beyla for HTTP L7.
 - It watches one namespace, `weave`, from `WATCH_NAMESPACE`.
-- It does not call the Kubernetes API and requires no RBAC.
+- It does not call the Kubernetes API and requires no Kubernetes RBAC.
+- It calls the Argo CD API read-only with a token to read the declared workload
+  inventory for `target-app-local`. That token is the only declared-state input.
 - It does not modify the Target App, install Cilium policies, or insert a proxy.
 - The web build is served from `/app/web/dist` by the same process.
+- It runs as one pod with one PVC mounted at `DATA_DIR`; SQLite and DuckDB live
+  on that volume. The Deployment uses `Recreate` because both are single-writer.
 
 ## Topology semantics
 
@@ -188,6 +193,61 @@ Always returns HTTP 200 while the process is alive:
 `status` is `degraded` when Relay is not connected. Kubernetes liveness does
 not kill the process for a Relay outage.
 
+### `POST /api/incidents`
+
+Request:
+
+```json
+{"start":"2026-11-14T09:30:00Z","end":"2026-11-14T09:32:00Z","symptom":"Catalog returns 500","scope":"gateway->catalog"}
+```
+
+Creates an Incident, computes the evidence snapshot, stores it in SQLite, and
+returns the Incident with HTTP 201.
+
+### `GET /api/incidents`
+
+Returns incidents newest first. `?limit=` defaults to 50, maximum 200.
+
+### `GET /api/incidents/{id}`
+
+Returns one Incident including its materialized evidence. Unknown id returns
+404.
+
+### `PATCH /api/incidents/{id}`
+
+Accepts any subset of `{"status":"open|closed","notes":"..."}`. Returns the
+updated Incident.
+
+### `POST /api/incidents/{id}/recompute`
+
+Recomputes evidence from the stored window and returns the updated Incident.
+This is the normal action after history is backfilled.
+
+### `GET /api/incidents/{id}/timeline`
+
+Returns:
+
+```json
+{
+  "window": {"start":"...","end":"..."},
+  "bucket_seconds": 5,
+  "suspect_edges": ["workload:weave/gateway->workload:weave/catalog:8082"],
+  "frames": [
+    {"at":"...","edges":[{"edge_id":"...","requests":12,"status_4xx":0,"status_5xx":10,"error_rate":0.833,"p95_ms":2.4,"anomaly":true}]}
+  ]
+}
+```
+
+The UI scrubs these frames. It does not query `GET /api/topology?at=...`; that
+historical full-graph resource remains deferred.
+
+### `GET /api/changes?from=&to=&limit=`
+
+Returns lifecycle change events in the interval, newest first. `from` and `to`
+are RFC3339; default is the last 24 hours. Each event carries `source`
+(`declared`, `live`, `observed`), `type`, `workload`, `kind`, and `details`.
+Change Events are not L4 Events.
+
 ## Configuration
 
 | Environment | Default | Meaning |
@@ -197,15 +257,29 @@ not kill the process for a Relay outage.
 | `WATCH_NAMESPACE` | `weave` | Observed namespace |
 | `WINDOW` | `5m` | Activity window, 1m–1h |
 | `WEB_DIR` | `web/dist` | Built UI directory |
+| `DATA_DIR` | empty | Enable history at this directory; required for incidents |
+| `ARGOCD_URL` | empty | Base URL of the Argo CD API |
+| `ARGOCD_TOKEN` | empty | Read-only Argo API token |
+| `ARGOCD_APP` | `target-app-local` | Argo Application to read |
+| `ARGOCD_NAMESPACE` | watch namespace | Namespace used to filter declared workloads |
 
 ## UI contract
 
-- One route, `/`.
-- A node or edge click opens the inspector.
-- The graph is cumulative; the ribbon is the five-minute L4 window.
-- An edge with `l7` shows an HTTP section: requests, responses, status classes,
-  p50/p95 with the latency source, the five-minute request sparkline, and up to
-  five normalized routes. An edge without `l7` is labelled L4-only.
-- The inspector shows only fields present in the snapshot.
-- The UI never calls the Kubernetes API, the Target App, Cilium, or Beyla
-  directly; it reads the Weave snapshot.
+- Two workspaces, selected in the top bar: `Topology` and `Incidents`. The
+  incident workspace is deep-linkable with `?view=incidents`.
+- A node or edge click opens the inspector. The inspector shows only fields
+  present in the snapshot.
+- Live edge titles show `protocol · port` and, for HTTP edges, the error rate.
+  They do not show L4/L7 jargon.
+- The live flow heatmap is the five-minute Activity Window; its expanded state
+  shows window total, peak bucket, average, and active buckets.
+- An incident shows its symptom/window/status, a scrub timeline, a suspect
+  graph with per-frame error rates and quantities, evidence, onset, changes,
+  notes, and close/reopen controls.
+- Incident graph edge labels carry error percentage and quantities, not
+  protocol labels. Nodes are draggable; edges and nodes focus on hover; edges
+  are selectable.
+- The timeline is the only place a recorded frame is presented. `Live topology`
+  opens the current graph, not a historical reconstruction.
+- The UI never calls the Kubernetes API, Argo CD, the Target App, Cilium, or
+  Beyla directly. It reads the Weave API only.

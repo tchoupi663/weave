@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { PositionedNode } from './layout'
-import type { TopologyEdge } from './types'
+
+// The force field only needs a position seed and a link; both the live
+// topology and the incident suspect region feed it.
+export interface ForceSeed {
+  id: string
+  x: number
+  y: number
+  r: number
+}
+
+export interface ForceEdge {
+  source: string
+  target: string
+}
 
 export interface SimNode {
   id: string
@@ -72,11 +84,11 @@ class ForceSimulation {
     lastMoveAt: 0,
   }
 
-  constructor(seeds: PositionedNode[], edges: TopologyEdge[]) {
+  constructor(seeds: ForceSeed[], edges: ForceEdge[]) {
     this.sync(seeds, edges)
   }
 
-  sync(seeds: PositionedNode[], edges: TopologyEdge[]): SyncResult {
+  sync(seeds: ForceSeed[], edges: ForceEdge[]): SyncResult {
     const seedByID = new Map(seeds.map((seed) => [seed.id, seed]))
     const next = new Map<string, SimNode>()
     let structural = false
@@ -290,7 +302,7 @@ class ForceSimulation {
   }
 }
 
-export function useForceGraph(seedNodes: PositionedNode[], edges: TopologyEdge[]) {
+export function useForceGraph(seedNodes: ForceSeed[], edges: ForceEdge[]) {
   const simRef = useRef<ForceSimulation | null>(null)
   if (simRef.current === null) {
     simRef.current = new ForceSimulation(seedNodes, edges)

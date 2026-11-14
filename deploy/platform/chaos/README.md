@@ -22,3 +22,8 @@ The first incident fixture is
 `GET /api/products` responses with HTTP 500 for two minutes. It must be applied
 after the 15-minute healthy baseline and removed after the incident window. The
 fixture is owned by the fault harness, not by Weave.
+
+The full acceptance sequence is `scripts/incident-replay.sh`. It starts the
+20-minute Simulator run, applies the fixture at the 15-minute mark, removes it
+two minutes later, waits for the three-minute recovery, and creates the
+incident. The recorded result is in [`docs/acceptance.md`](../../../docs/acceptance.md).

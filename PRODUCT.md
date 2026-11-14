@@ -8,120 +8,142 @@ web
 
 ## Users
 
-Platform and network engineers validating what traffic actually crosses a
-Kubernetes application. Their working situation is a laptop beside a kind
-cluster, a simulator driving the Target App, and Hubble as the only source of
-truth about service-to-service traffic. They need to answer one question
-quickly: which workloads talked to which, over what, and is that what the
-application is supposed to do?
+Platform and network engineers responding to a Kubernetes application incident.
+Their working situation is a laptop beside a kind cluster, a simulator driving
+the Target App, and Hubble and Beyla as the only sources of traffic truth. They
+need to answer two questions quickly: did the graph change around the incident,
+and where did the observed behavior start to diverge? They are not looking for
+an alert, a dashboard of everything, or a causal verdict.
 
 ## Product Purpose
 
-Weave constructs a live topology from observed network traffic. It ingests
-Hubble L4 flows and HTTP observations from Grafana Beyla, groups
-endpoints into workloads, and presents the resulting graph and edge telemetry
-as an operator screen. Success for the first slice is a graph that, after a
-Simulator run against the Target App, contains the nine Expected Topology nodes
-and eight edges without reading the expected graph, with HTTP request, status,
-latency, and route detail on the five HTTP edges.
+Weave constructs an observed topology from network traffic, retains a
+time-bucketed history, and turns a manually selected incident window into a
+bounded suspect region with evidence. It ingests Hubble L4 flows and HTTP
+observations from Grafana Beyla, groups endpoints into workloads, reads the
+Argo CD desired workload inventory read-only, and serves both the Operator
+screen and a read API for a future Agent.
+
+Success for the first slice is a 20-minute replay in which a two-minute Catalog
+HTTP 500 incident produces the expected suspect region — Catalog and
+Gateway → Catalog, with Frontend → Gateway as the cascade — while Auth and
+Payment stay outside it. The incident, evidence, and history survive a Weave
+restart.
 
 ## Positioning
 
 Weave is observed-first. Traffic creates nodes and edges; Kubernetes metadata
-is used only to name, group, and label what was already observed. It does not
-render a declared service catalogue and call it a topology.
+names and groups what was already observed. Declared Architecture from Argo CD
+is an object inventory for lifecycle comparison, never a source of observed
+edges. The diagnosis is a suspect region, not a root cause.
 
 ## Operating Context
 
-- Target App namespace: `weave`.
-- Weave runs in `weave-system` and watches one namespace at a time.
+- Target App namespace: `weave`; Weave runs in `weave-system`.
 - Cilium 1.20.4 with Hubble Relay is installed in `kube-system`.
-- Grafana Beyla runs as a separate privileged eBPF DaemonSet in
-  `beyla-system`; it reads `gateway` client and server HTTP calls without
-  inserting a proxy or changing the Target App.
-- The Simulator runs outside the cluster and enters the Target App through a
-  local port-forward.
+- Grafana Beyla is a separate privileged eBPF DaemonSet in `beyla-system`; it
+  instruments the gateway process without a proxy or Target App change.
+- Argo CD manages the Target App from `deploy/envs/local` with a read-only token
+  for Weave.
+- Chaos Mesh injects the acceptance fault with an `HTTPChaos` object.
+- The Simulator runs outside the cluster and enters through a local
+  port-forward.
+- Weave runs as one pod with one 2 GiB PVC.
 - The first screen is used on a desktop while a run is active, often beside a
   terminal and the Simulator report.
 
 ## Capabilities and Constraints
 
-- Nodes are logical Kubernetes workloads, plus a single `Source IP` node for
-  traffic entering from outside the observed namespace.
-- Edges are ordered workload pairs plus destination port. Replies fold into the
+- Nodes are logical Kubernetes workloads plus a single `Source IP` boundary.
+  Edges are ordered workload pairs plus destination port; replies fold into the
   request edge.
-- State is in-memory: cumulative since start/reset, plus a five-minute activity
-  window. There is no database.
-- L4 plus HTTP L7 in v1. Hubble gives connection and flow-event observations,
-  ports, verdicts, and first/last seen. Beyla adds HTTP requests, status
-  classes, p50/p95 latency, and normalized routes for the five HTTP edges:
-  Frontend → Gateway and Gateway → Auth, Catalog, Orders, Payment.
-- L7 is additive. L4 connections/events remain separate from L7 requests;
-  Weave never sums them.
-- L7 is HTTP only. Headers, query strings, and bodies are discarded. Requests
-  with no client span stay L4-only. Source IP → Frontend (HTTPS), Orders →
-  Postgres (TCP), and Payment → External Payment Provider (HTTPS) remain L4-only.
-- Four L7 edges are client-observed. `Frontend → Gateway` is server-observed
-  because the gateway-only observer avoided the frontend instrumentation that
-  exceeded the performance gate. The API and UI label the latency source.
-- The Frontend Service is reached through a port-forward; Hubble reports the
-  host endpoint as the source. Weave treats host traffic to `frontend:443` as
-  the `Source IP` edge and drops host traffic to other workloads as kubelet
-  probes.
-- A Cilium L7 visibility policy was evaluated and rejected: its Envoy proxy
-  added a 15.5% weighted p95 regression. Beyla was selected because it keeps
-  the Target App data path unchanged and stayed within the 5% performance
-  gate in the measured run.
-- No authentication in v1. The surface is internal and reached through a local
-  port-forward.
+- The live graph is cumulative since start/reset with a five-minute activity
+  window. History is separate: SQLite for incidents, change events, and
+  workload state; DuckDB for edge metric buckets.
+- Retention: 5-second buckets for 24 hours, 1-minute rollups for 7 days, change
+  events for 30 days. Raw flows and spans are not retained.
+- L4 plus HTTP observations. Hubble gives connections, events, ports, verdicts,
+  and first/last seen. Beyla adds requests, status classes, p50/p95 latency, and
+  normalized routes on the HTTP edges.
+- HTTP is additive. L4 connections/events are never summed with HTTP requests.
+  Headers, query strings, and bodies are discarded.
+- Five HTTP edges are observed: Frontend → Gateway and
+  Gateway → Auth/Catalog/Orders/Payment. Source IP → Frontend (HTTPS),
+  Orders → Postgres (TCP), and Payment → External Payment Provider (HTTPS) are
+  connection-level only.
+- Frontend → Gateway is server-observed; the four downstream HTTP edges are
+  client-observed. The UI labels the latency source.
+- An incident is a persisted, time-bounded investigation with a symptom,
+  optional scope, status, notes, and a materialized evidence snapshot.
+- Evidence uses a 15-minute baseline. An edge is anomalous when its 4xx or 5xx
+  rate is at least 2× baseline and at least +5 percentage points, or when p95 is
+  at least 2× baseline and at least +5 ms. The suspect region is the earliest
+  connected anomalous region, not a root cause.
+- The incident timeline is a 5-second scrub over suspect-edge frames. It is not
+  a full historical topology reconstruction.
+- The declared source is Argo CD. Weave does not gain Kubernetes API RBAC.
+- No authentication in this slice. The surface is internal and reached through
+  a local port-forward.
 - The Target App is not modified by Weave or by the Beyla observer.
 
 ## Brand Commitments
 
 - Product name: Weave.
 - The Control AI case study at
-  https://fuselabcreative.com/our-projects/control-ai/ is a binding
-  composition and atmosphere reference.
+  https://fuselabcreative.com/our-projects/control-ai/ is a binding composition
+  and atmosphere reference.
 - The visual world is an operator console at night: cool graphite, steel, a
-  single signal-blue accent, hairlines and knots. Dark-only for v1.
+  signal-blue accent, a restrained heat ramp for flow density, hairlines and
+  knots. Dark-only for v1.
 - No existing logo or brand assets were supplied. The wordmark is the product
   name; the mark is a simple woven glyph.
 
 ## Evidence on Hand
 
 - `expected-topology.yaml`: nine nodes and eight edges for the healthy v1.
-- A 12-second, 20-user smoke run against the deployed Target App produced
-  66 Bounce, 107 Browse, and 37 Order journeys with zero failures.
-- The smoke run produced 8,096 Hubble flows. After folding replies and
-  excluding kube-system DNS and kubelet probes, the observed edge set matched
-  the expected eight edges.
-- A 12-second smoke run produced 1,265 HTTP observations across all five
-  L7-capable edges.
-- A gateway-only, 60-second, 50-user Beyla run produced five L7 edges and 1,573
-  HTTP observations with zero failed journeys and a 0.3% weighted p95
-  regression against the same-run baseline. Per-step p95 is noisy at low
-  counts; absolute changes were small.
+- A 12-second, 20-user smoke run produced 66 Bounce, 107 Browse, and 37 Order
+  journeys with zero failures.
+- Healthy runs produced 9 nodes, 8 edges, and 5 HTTP-bearing edges with about
+  1,500 L7 requests.
+- The 20-minute acceptance replay passed on 2026-11-14: 15 minutes healthy,
+  2 minutes of Catalog `GET /api/products` HTTP 500, 3 minutes recovery.
+- The suspect region was exactly Frontend → Gateway and Gateway → Catalog;
+  Catalog, Frontend, and Gateway were the suspect nodes. Auth and Payment were
+  outside. Both suspect edges had onset in the first fault bucket and reason
+  `5xx rate`.
+- Route evidence showed 2,008 5xx on `GET /api/products` for Frontend → Gateway
+  and 2,004 for Gateway → Catalog; the other top-five routes had zero 5xx.
+- The incident, its evidence, and its 24-frame timeline survived a Weave
+  restart with identical JSON hashes. Restart history counts were
+  `edge_5s=4134`, `edge_1m=514`, `changes=127`.
+- A short run after restart restored 9 nodes, 8 edges, 5 HTTP edges, zero
+  failures.
 - There is no production usage data. Do not invent request rates, latency,
-  byte counts, customers, or benchmark claims.
+  customers, or benchmark claims.
 
 ## Product Principles
 
-1. Observation over declaration. If no traffic created it, it is not in the
-   graph.
+1. Observation over declaration. A declared workload with no traffic is a ghost
+   in lifecycle comparison, not an observed node or edge.
 2. The graph is evidence. Every visible node, edge, and figure must correspond
-   to something Weave observed.
-3. Be honest about the instrument. L4 observations are connections and events.
-   L7 observations are HTTP requests from gateway client/server spans; they are
-   never added to L4 counts, and the UI names whether latency is client- or
-   server-observed.
-4. Operator first. The screen is for a task, not a demo; atmosphere must not
-   obscure state or selection.
-5. Keep the Target App untouched. Weave reads; a separate eBPF observer reads;
-   neither polices nor rewrites the application it observes.
+   to something recorded.
+3. Be honest about the instrument. Connections and events are not requests;
+   latency names its observer; history names its bucket and retention.
+4. A suspect is not a root cause. The output is a connected region and the
+   evidence around its earliest onset.
+5. Operator first. The screen is for a task, not a demo; atmosphere must not
+   obscure state, selection, or the next action.
+6. Keep the Target App untouched. Weave reads; the observer reads; the fault
+   harness is the only writer and it lives outside the app.
+7. Live and history are different instruments. The flow heatmap is the current
+   five-minute window; the incident timeline is a recorded one.
 
 ## Accessibility & Inclusion
 
-- Keyboard access to every control and to graph nodes and edges.
+- Keyboard access to every control, graph node, edge, and incident action.
 - Visible focus states on the dark surface.
 - Text meets WCAG AA contrast; status is not carried by color alone.
-- The graph has a textual inspector equivalent for selection and counts.
+- The graph and timeline have textual equivalents: the inspector, evidence
+  panel, and labelled controls.
+- The interface holds at 720px, but the working operator layout is 1024px and
+  wider.

@@ -1,6 +1,10 @@
 # Run Spec
 
-The Simulator is a CLI plus a YAML Run spec. There is no UI. v1 is healthy-only: no crash, saturation, latency injection, or fault timeline.
+The Simulator is a CLI plus a YAML Run spec. There is no UI. The Simulator
+always generates healthy journeys; faults are injected externally by the
+Chaos Mesh harness. A fault run is expected to fail journeys while the fault is
+active and to exit non-zero at the end; that is acceptance evidence, not a
+Simulator defect.
 
 ## CLI
 
@@ -49,7 +53,8 @@ run:
 | `reset` | Call `/admin/reset` before the measured window | `true` |
 | `tls.insecure_skip_verify` | Accept the self-signed Frontend certificate | `true` |
 
-There is no `faults` section in v1.
+There is no `faults` section. Faults are owned by the harness and applied to
+the Target App, not by the Simulator.
 
 ## Lifecycle
 
@@ -63,6 +68,10 @@ There is no `faults` section in v1.
 8. Write the report and exit.
 
 Preflight and reset are setup traffic; they are outside `started_at`/`ended_at`.
+
+The measured window is fixed. The grace period begins after `duration`, not at
+run start; a 20-minute run remains active for 20 minutes before waiting for
+active Users.
 
 ## Journeys
 
@@ -121,6 +130,22 @@ Login happens before browsing in the confirmed Order Journey. `POST /api/orders`
 - A failed Journey increments `journeys.*.started` and `failed`, not `completed`.
 - The Run exits `1` if any Journey fails or a configured Journey or required step is never exercised.
 
+## Incident replay
+
+The acceptance run uses `testdata/incident-replay.yaml`: 20 minutes at
+concurrency 50, with the standard 30/50/20 mix. It runs for 15 minutes healthy,
+then the harness applies
+`deploy/platform/chaos/fixtures/catalog-http-500.yaml` for two minutes, then
+deletes it for three minutes of recovery.
+
+The Simulator sees HTTP 500s on Catalog product requests and expected journey
+failures during the fault. A non-zero exit is normal there. The harness waits
+for the run to end and then creates the incident over the fault window. The
+procedure and recorded result are in [acceptance.md](acceptance.md).
+
+`scripts/incident-replay.sh` runs this shape; it requires the Target App and
+Weave port-forwards and Chaos Mesh.
+
 ## Report
 
 ```json
@@ -156,6 +181,9 @@ Login happens before browsing in the confirmed Order Journey. `POST /api/orders`
 
 ## Scope
 
-- v1 generates healthy traffic only. Fault scenarios are a later iteration.
-- The Simulator does not query Weave. A separate benchmark tool compares the report to Weave's `/api/topology` and `/api/telemetry`.
-- The Simulator does not own the Target App deployment or reset internals; it calls the Frontend's `/admin/reset`.
+- The Simulator generates healthy traffic only. The separate Chaos Mesh harness
+  injects the Catalog fault for acceptance.
+- The Simulator does not query Weave. The benchmark/acceptance tooling compares
+  the report to Weave's history and incident evidence.
+- The Simulator does not own the Target App deployment or reset internals; it
+  calls the Frontend's `/admin/reset`.

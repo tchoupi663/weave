@@ -88,7 +88,7 @@ _Avoid_: call, transaction.
 
 **Status Class**:
 The first digit of an HTTP response status, grouped as `2xx`, `3xx`, `4xx`, `5xx`, or `other`. A status class is evidence from the response, not a health verdict.
-_Avoid_: error rate, success rate.
+_Avoid_: health verdict, success rate.
 
 **Client Latency**:
 The elapsed time of an HTTP request measured at the calling workload by Beyla. It is not Cilium proxy latency and not server processing time.
@@ -134,7 +134,7 @@ The five-minute rolling set of 60 event buckets on each edge and on the whole gr
 _Avoid_: long-term history, retention, time series.
 
 **Declared Architecture**:
-The workload inventory the deployment declaration says should exist. In v1 it is object-level: workloads and Services, not call edges. Edges remain observed.
+The workload inventory the deployment declaration says should exist. Weave reads it from the Argo CD desired state for the Target App through a read-only API token. It is object-level: workloads and Services, not call edges. Edges remain observed.
 _Avoid_: declared graph, intended topology.
 
 **Declared Workload**:
@@ -154,7 +154,7 @@ A recorded transition in declared or observed lifecycle. It has provenance (`dec
 _Avoid_: event, log.
 
 **History**:
-Persisted Change Events and time-bucketed edge telemetry that allow replay and evolution. This is separate from the five-minute Activity Window.
+Persisted Change Events and time-bucketed edge telemetry that allow replay and evolution. SQLite stores incidents, Change Events, and workload state; DuckDB stores edge metric buckets. Retention is 5-second buckets for 24 hours, 1-minute rollups for 7 days, and Change Events for 30 days. This is separate from the five-minute Activity Window.
 _Avoid_: activity window, retention, time series.
 
 **Architecture Evolution**:
@@ -168,6 +168,30 @@ _Avoid_: metrics history, monitoring.
 **Incident**:
 A persisted, time-bounded investigation started by an Operator, with a symptom, optional structured scope, evidence, status, and notes. It is not an alert or an anomaly.
 _Avoid_: accident, outage, alert.
+
+**Incident View**:
+The Operator workspace for one Incident: timeline scrubber, suspect-region graph, evidence, lifecycle changes, and notes. It is a reading surface, not an alert queue.
+_Avoid_: incident dashboard, alert page.
+
+**Timeline**:
+The Incident View's scrub control over the Incident Window. It is made of recorded metric frames, not a recorded video or a full historical graph.
+_Avoid_: playback, replay video, animation.
+
+**Timeline Frame**:
+One bucket of suspect-edge metrics on the Incident Timeline. The default bucket is 5 seconds; longer windows use 1-minute buckets. A frame carries requests, error rates, p95, and whether the edge crossed the anomaly threshold in that bucket.
+_Avoid_: snapshot, sample (when the distinction matters).
+
+**Scrubber**:
+The Operator control that selects a Timeline Frame. It changes the suspect graph and evidence to that frame; it does not rewrite the Incident or its Evidence Snapshot.
+_Avoid_: player, slider, time machine.
+
+**Flow Heatmap**:
+The compact top-right live instrument that shows the five-minute Activity Window as heat-colored buckets. Expanding it shows the window total, peak bucket, average, and active buckets. It is not History and is not used for Incident evidence.
+_Avoid_: activity ribbon, sparkline, dashboard chart.
+
+**Error Rate**:
+The share of observed HTTP requests on an Edge in a bucket whose status class is `4xx` or `5xx`. The Incident graph shows it together with the error and request quantities. L4-only edges have no Error Rate.
+_Avoid_: success rate, health score, status verdict.
 
 **Incident Window**:
 The start and end time selected for an Incident. The end may remain open while the investigation is live.

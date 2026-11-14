@@ -1,29 +1,37 @@
 # Weave
 
-Weave is a topology testbed and the observed topology app that accompanies it.
-A dummy e-commerce **Target App** generates real HTTP traffic through a
-**Simulator**; Weave follows Cilium Hubble L4 flows, consumes HTTP spans from
-Grafana Beyla, and constructs a live workload-level map of what actually
-crossed the network. Beyla uses eBPF and does not insert a proxy into
-the Target App.
+Weave is an incident-replay topology app for a Kubernetes application. It
+constructs an observed workload graph from Cilium Hubble L4 flows and Grafana
+Beyla HTTP spans, retains a time-bucketed history, reads the Argo CD desired
+inventory read-only, and turns a manually selected incident window into a
+bounded suspect region.
+
+Weave is not an alerting system and does not claim a root cause. It is an
+operator instrument: the graph and the evidence are the product.
 
 ## What is here
 
 - `services/app/` — the Target App: Vite frontend behind NGINX, API Gateway, Auth, Catalog, Orders (Postgres), Payment, and the External Payment Provider.
-- `services/simulator/` — the CLI that runs the Bounce, Browse, and Order Journeys and writes a JSON report with the Expected Topology.
-- `services/weave/` — the actual app: a Go topology constructor that follows Hubble Relay and serves a Vite/React operator screen.
+- `services/simulator/` — the CLI that runs Bounce, Browse, and Order Journeys and writes a JSON report with the Expected Topology.
+- `services/weave/` — the app: a Go topology/history service and incident API with a Vite/React operator screen.
 - `compose.yaml` — local Docker Compose stack for the Target App.
-- `deploy/` — Kubernetes: Helm charts for the Target App and Weave, kind cluster + Cilium bootstrap, Argo CD applications, per-environment values. See [deploy/README.md](deploy/README.md).
-- `expected-topology.yaml` — the expected nodes and edges used by the inference benchmark.
+- `deploy/` — Kubernetes: Helm charts, kind + Cilium bootstrap, Argo CD, Chaos Mesh, and Beyla. See [deploy/README.md](deploy/README.md).
+- `expected-topology.yaml` — the healthy fixture's expected nodes and edges.
 - `scripts/integration-test.sh` — unit tests, frontend build, Compose, contract checks, and a short Simulator run.
+- `scripts/incident-replay.sh` — the 20-minute acceptance harness: 15-minute baseline, 2-minute Catalog fault, 3-minute recovery, then incident creation.
+- `docs/adr/0005-incident-replay.md` — the incident-replay architecture.
+- `docs/acceptance.md` — the recorded acceptance run and its evidence.
 
 ## Requirements
 
-- Docker with Compose
-- Go 1.26+ for Weave; Go 1.24+ for the Target App and Simulator
-- Node 20+ (for local frontend builds; Docker also builds the frontend)
-- `kind`, `kubectl`, and `helm` for the in-cluster path, with Cilium/Hubble
-  installed
+- Docker with Compose.
+- Go 1.26+ for Weave; Go 1.24+ for the Target App and Simulator.
+- Node 20+ for local frontend builds. The Weave image builds the frontend itself.
+- `kind`, `kubectl`, and `helm` for the in-cluster path, with Cilium/Hubble,
+  Argo CD, Chaos Mesh, and Beyla installed.
+
+Weave builds with CGO because DuckDB is embedded. The image is a Debian build
+and runtime, not a static Alpine binary.
 
 ## Run the Target App
 
@@ -33,9 +41,8 @@ docker compose ps
 curl -k https://localhost:8443/health
 ```
 
-Open <https://localhost:8443> and accept the self-signed certificate. Demo login: `user0001` / `password`.
-
-The Frontend is the only published service. Everything else is internal to the Compose network:
+Open <https://localhost:8443> and accept the self-signed certificate. Demo login:
+`user0001` / `password`.
 
 | Service | Address | Notes |
 |---|---|---|
@@ -48,13 +55,12 @@ The Frontend is the only published service. Everything else is internal to the C
 | External Payment Provider | `external:8443` | HTTPS, self-signed |
 | Postgres | `postgres:5432` | `orders` database |
 
-## Run Weave (kind + Hubble)
+## Run Weave
 
-Weave runs in `weave-system` and watches the Target App in `weave`. It needs
-the in-cluster Hubble Relay for L4 and a Beyla DaemonSet for HTTP L7; it does
-not query the Kubernetes API. This path
-assumes the Target App chart is installed in `weave` and Cilium has Hubble
-enabled, as described in [deploy/README.md](deploy/README.md).
+Weave runs in `weave-system` and watches the Target App in `weave`. It reads
+Hubble Relay and Beyla, not the Kubernetes API. It persists history in one
+`weave-data` PVC and reads the Argo CD application `target-app-local` through a
+read-only API token.
 
 ```bash
 docker build -t weave-app:dev -f services/weave/Dockerfile services/weave
@@ -64,9 +70,16 @@ kubectl -n weave-system rollout status deploy/weave --timeout=120s
 kubectl -n weave-system port-forward svc/weave 8090:8080
 ```
 
-Install the Beyla observer once Weave is reachable. It instruments only the
-`gateway` process and sends OTLP traces to Weave; gateway client spans cover
-the four downstream edges, and gateway server spans cover Frontend → Gateway:
+The chart uses a 2 GiB PVC mounted at `/data`. The Deployment uses the
+`Recreate` strategy because SQLite and DuckDB are single-writer stores on a
+ReadWriteOnce volume. `persistence.accessMode` is configurable; use
+`ReadWriteOncePod` where the storage class supports it.
+
+Create the read-only Argo token before Weave starts. Without it Weave records
+metrics but cannot reconcile declared/live lifecycle states. The exact
+commands are in [deploy/platform/argocd/README.md](deploy/platform/argocd/README.md).
+
+Beyla is a separate platform addon:
 
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
@@ -77,41 +90,86 @@ helm upgrade --install beyla grafana/beyla \
   -f deploy/platform/observability/beyla-values.yaml
 ```
 
-Open <http://127.0.0.1:8090>. The screen is live; it will show an empty state
-until Hubble reports a flow in `weave`.
+Beyla instruments only the `gateway` process. Gateway client spans cover
+Gateway → Auth/Catalog/Orders/Payment; gateway server spans cover
+Frontend → Gateway. It is a privileged eBPF DaemonSet and inserts no proxy.
 
-To drive traffic, publish the Target App frontend and run the Simulator as
-above:
+Open <http://127.0.0.1:8090>. The live topology starts empty; drive traffic with
+the Simulator after port-forwarding the Target App frontend:
 
 ```bash
 kubectl -n weave port-forward svc/frontend 8443:8000
 (cd services/simulator && go run ./cmd/sim run --config run.yaml)
 ```
 
-Weave exposes:
+### Weave API
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/topology` | Cumulative snapshot plus 60 activity buckets |
-| `GET /api/stream` | SSE snapshots every second |
-| `POST /api/reset` | Clear Weave's observed graph; not the Target App |
+| `GET /api/topology` | Live cumulative snapshot plus 60 activity buckets |
+| `GET /api/stream` | SSE topology snapshots every second |
+| `POST /api/reset` | Clear Weave's live graph; not the Target App |
 | `POST /v1/traces` | OTLP HTTP/protobuf receiver for Beyla |
-| `GET /health` | Liveness and Relay status |
+| `POST /api/incidents` | Create and materialize an incident window |
+| `GET /api/incidents` | List incidents |
+| `GET /api/incidents/{id}` | Incident with its evidence snapshot |
+| `PATCH /api/incidents/{id}` | Update notes or open/closed state |
+| `POST /api/incidents/{id}/recompute` | Recompute evidence for the stored window |
+| `GET /api/incidents/{id}/timeline` | Five-second suspect-edge frames for scrubbing |
+| `GET /api/changes?from=&to=` | Lifecycle change events |
+| `GET /health`, `/api/health` | Process and Relay status |
 
-The graph shows **connections** (TCP opens) and **events** (observed L4 flows).
-Edges that carry HTTP spans also show **requests**, **status classes**,
-**p50/p95 with its latency source**, and **normalized routes**. L4 and L7 remain separate; they
-are never summed. See [the Weave contract](docs/weave-contract.md),
-[ADR-0003](docs/adr/0003-observed-topology.md), and
-[ADR-0004](docs/adr/0004-l7-observability.md).
+Seeded history: 5-second edge buckets for 24 hours, 1-minute rollups for 7
+days, and change events for 30 days. Raw flows and spans are never retained.
+See [the Weave contract](docs/weave-contract.md).
 
-![Weave topology screen](docs/images/weave-topology.png)
+### Incident view
 
-![Weave L7 edge inspector](docs/images/weave-l7-inspector.png)
+The `Topology` / `Incidents` switch opens the incident workspace. An incident
+has a 15-minute baseline, a scrub timeline, a suspect-region canvas, per-edge
+baseline/incident evidence, lifecycle changes, notes, close/reopen, and a live
+topology link. The incident graph labels show error rates and quantities, not
+protocol labels.
+
+The flow heatmap at the top right of the topology view expands to the window
+total, peak bucket, average, and active buckets. It is a live five-minute
+instrument, not history.
+
+![Weave topology with HTTP error rates and flow heatmap](docs/images/weave-topology.png)
+
+![Weave incident workspace with scrub timeline](docs/images/weave-incident-workspace.png)
+
+![Expanded flow heatmap](docs/images/weave-flow.png)
+
+## Incident replay acceptance
+
+The 20-minute replay is:
+
+1. 15 minutes of healthy traffic.
+2. Chaos Mesh `HTTPChaos` replacing Catalog `GET /api/products` with HTTP 500 for two minutes.
+3. Three minutes of recovery.
+4. An Incident created over the fault window.
+
+```bash
+./scripts/incident-replay.sh
+```
+
+The script expects the Target App port-forward on `:8443` and Weave on `:8090`.
+It applies `deploy/platform/chaos/fixtures/catalog-http-500.yaml` at the
+15-minute mark, removes it after two minutes, waits for the three-minute
+recovery, and creates the incident through `POST /api/incidents`.
+
+The expected result is a suspect region containing Catalog and
+Gateway → Catalog, with Frontend → Gateway as the cascade. Auth and Payment must
+be outside it. **The 2026-11-14 acceptance passed**: the suspect edges were
+Frontend → Gateway and Gateway → Catalog, with both onsets in the first fault
+bucket; Auth and Payment were outside. The recorded evidence and restart hashes
+are in [docs/acceptance.md](docs/acceptance.md).
 
 ## Run the Simulator
 
-The Simulator runs on the host, outside the Compose stack, so its traffic enters from the host IP.
+The Simulator runs on the host, outside the Compose stack, so its traffic enters
+from the host IP.
 
 ```bash
 cd services/simulator
@@ -119,7 +177,10 @@ go run ./cmd/sim validate --config run.yaml
 go run ./cmd/sim run --config run.yaml --report ../../reports/run.json
 ```
 
-That is the documented 10-minute, 50-user shape. The shorter `testdata/run-short.yaml` is used by the integration test. The Expected Topology path is relative to the working directory. `--log-requests` adds a per-request log to the report.
+The default is the 10-minute, 50-user healthy Run. `testdata/run-short.yaml` is
+the integration smoke run. `testdata/incident-replay.yaml` is the 20-minute
+acceptance shape. The Expected Topology path is relative to the working
+directory. `--log-requests` adds per-request details to the report.
 
 ## Test
 
@@ -127,9 +188,7 @@ That is the documented 10-minute, 50-user shape. The shorter `testdata/run-short
 ./scripts/integration-test.sh
 ```
 
-The script runs the Go unit tests, the Vite build, `docker compose up --build`, HTTP contract checks, and a short Simulator run. It asserts that all three Journeys ran and that the Expected Topology has 9 nodes and 8 edges. Set `KEEP_STACK=1` to leave the stack running.
-
-Weave's own tests:
+Weave's own checks:
 
 ```bash
 (cd services/weave && go test ./...)
@@ -137,13 +196,7 @@ Weave's own tests:
 ./scripts/weave-integration-test.sh
 ```
 
-The Weave integration script builds the image, deploys the chart, port-forwards
-the app, runs the short Simulator config, and asserts that the constructed
-graph is exactly 9 nodes and 8 edges, that the five HTTP edges carry L7
-observations, and that the L4-only edges do not. It does not tear down the Target App;
-the Simulator resets its own test data as part of the run.
-
-Manual checks:
+Manual:
 
 ```bash
 (cd services/app && go test ./...)
@@ -155,24 +208,25 @@ Manual checks:
 
 - External: `Source IP → Frontend` HTTPS; `Payment → External Payment Provider` HTTPS.
 - Internal: `Frontend → Gateway` HTTP; `Gateway → Auth/Catalog/Orders/Payment` HTTP; `Orders → Postgres` TCP.
-- NGINX proxies `/api/*` and `/admin/reset` to the Gateway.
-- The Simulator talks only to the Frontend. Source IP is the external boundary; through a local port-forward, Hubble reports the host endpoint. Weave displays the observed address, not a named `ext users` node.
-- Weave groups pods into workloads, creates edges only from observed traffic, and folds replies into one ordered edge.
-- L7 coverage is five of eight edges: `Frontend → Gateway` and
-  `Gateway → Auth/Catalog/Orders/Payment`. `Source IP → Frontend` HTTPS,
-  `Payment → External Payment Provider` HTTPS, and `Orders → Postgres` TCP stay
-  L4-only.
-- L7 requests, status, and latency come from Beyla gateway client and server
-  spans. Four edges are client-observed; Frontend → Gateway is server-observed.
-  The UI labels the source. Headers, query strings, and bodies are discarded.
-- Kubelet probes from the host to non-Frontend workloads are excluded. The Source IP observed through a port-forward is the host endpoint; the inspector says so.
-- The expected topology is in [expected-topology.yaml](expected-topology.yaml).
+- Weave groups pods into workloads, creates edges only from observed traffic, and folds replies into one ordered request edge.
+- HTTP coverage is five of eight edges. `Source IP → Frontend` HTTPS,
+  `Payment → External Payment Provider` HTTPS, and `Orders → Postgres` TCP are
+  connection-level only.
+- Four HTTP edges are client-observed; Frontend → Gateway is server-observed.
+  The inspector labels the latency source per edge. Headers, query strings, and
+  bodies are discarded.
+- Kubelet probes are excluded by the observed-topology filter. The Source IP
+  seen through a port-forward is the host endpoint.
+- Declared Architecture is Argo CD object inventory only. It never creates an
+  observed edge.
+- The expected healthy topology is [expected-topology.yaml](expected-topology.yaml).
 
 ## Docs
 
 - [Run spec](docs/run-spec.md)
 - [Target App contract](docs/target-app-contract.md)
-- [Weave topology contract](docs/weave-contract.md)
+- [Weave contract](docs/weave-contract.md)
+- [Acceptance](docs/acceptance.md)
 - [Glossary](GLOSSARY.md)
 - [Product](PRODUCT.md)
 - [Design](DESIGN.md)
@@ -180,12 +234,19 @@ Manual checks:
 - [ADR-0002: HTTP client, not browser](docs/adr/0002-http-client-not-browser.md)
 - [ADR-0003: observed topology](docs/adr/0003-observed-topology.md)
 - [ADR-0004: L7 observability](docs/adr/0004-l7-observability.md)
+- [ADR-0005: incident replay](docs/adr/0005-incident-replay.md)
 
 ## Not included
 
-- Fault injection (container crash and saturation) — the next iteration.
-- The Cilium L7 visibility policy. It was rejected because its Envoy proxy
-  added a measurable latency regression; see ADR-0004.
-- The benchmark comparison tool. The Simulator emits the ground truth; a
-  separate tool compares it to Weave's `/api/topology`.
-- A supported phone layout. Weave is designed for 1024px and wider.
+- Authentication. The API is internal and port-forward only.
+- An Agent UI. The read API is shared with a future Agent.
+- Architecture/telemetry evolution beyond stored metrics and change events.
+- A statistical single-root-cause claim. The output is a suspect region.
+- Historical full-topology reconstruction at `at=...`; the incident timeline is
+  built from suspect-edge metric frames, and `Live topology` opens the current
+  graph.
+- A supported phone layout. The visual layout holds at 720px, but the operator
+  layout is designed for 1024px and wider.
+- Generic all-connection host/probe acceptance. The current live filter keeps
+  the Target App's ingress-scoped host behavior and fixture display names; the
+  incident acceptance region is unaffected.

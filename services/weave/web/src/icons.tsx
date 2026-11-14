@@ -103,7 +103,7 @@ export function WeaveMark({ size = 24 }: { size?: number }) {
         strokeWidth="1.7"
         strokeLinecap="round"
       />
-      <circle cx="16" cy="16" r="1.35" fill="var(--accent)" />
+      <rect x="14.6" y="14.6" width="2.8" height="2.8" rx="0.6" fill="var(--accent)" />
     </svg>
   )
 }
