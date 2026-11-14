@@ -10,8 +10,7 @@ import (
 
 func TestHistoryPersistsMetricsAcrossReopen(t *testing.T) {
 	dir := t.TempDir()
-	store := topology.NewStore("weave", 5*time.Minute)
-	h, err := Open(dir, "weave", store, nil, nil)
+	h, err := Open(dir, "weave", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,12 +30,12 @@ func TestHistoryPersistsMetricsAcrossReopen(t *testing.T) {
 	if err := h.flushOnce(now.Add(10 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	metrics5, metrics1, changes, err := h.Counts(context.Background())
+	metrics5, metrics1, err := h.Counts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if metrics5 != 1 || metrics1 != 0 || changes != 0 {
-		t.Fatalf("counts after 5s flush = %d/%d/%d", metrics5, metrics1, changes)
+	if metrics5 != 1 || metrics1 != 0 {
+		t.Fatalf("counts after 5s flush = %d/%d", metrics5, metrics1)
 	}
 	var routes, requests, success int64
 	if err := h.duck.QueryRow(`SELECT count(*) FROM route_metrics_5s`).Scan(&routes); err != nil {
@@ -51,7 +50,7 @@ func TestHistoryPersistsMetricsAcrossReopen(t *testing.T) {
 	if err := h.flushOnce(now.Add(2 * time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	metrics5, metrics1, _, err = h.Counts(context.Background())
+	metrics5, metrics1, err = h.Counts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,24 +61,23 @@ func TestHistoryPersistsMetricsAcrossReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reopened, err := Open(dir, "weave", store, nil, nil)
+	reopened, err := Open(dir, "weave", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	metrics5, metrics1, changes, err = reopened.Counts(context.Background())
+	metrics5, metrics1, err = reopened.Counts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if metrics5 != 1 || metrics1 != 1 || changes != 0 {
-		t.Fatalf("persisted counts = %d/%d/%d", metrics5, metrics1, changes)
+	if metrics5 != 1 || metrics1 != 1 {
+		t.Fatalf("persisted counts = %d/%d", metrics5, metrics1)
 	}
 }
 
 func TestHistoryDropsSelfEdges(t *testing.T) {
 	dir := t.TempDir()
-	store := topology.NewStore("weave", 5*time.Minute)
-	h, err := Open(dir, "weave", store, nil, nil)
+	h, err := Open(dir, "weave", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,19 +96,18 @@ func TestHistoryDropsSelfEdges(t *testing.T) {
 	if err := h.flushOnce(now.Add(10 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	metrics5, metrics1, changes, err := h.Counts(context.Background())
+	metrics5, metrics1, err := h.Counts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if metrics5 != 0 || metrics1 != 0 || changes != 0 {
-		t.Fatalf("self edges were stored: %d/%d/%d", metrics5, metrics1, changes)
+	if metrics5 != 0 || metrics1 != 0 {
+		t.Fatalf("self edges were stored: %d/%d", metrics5, metrics1)
 	}
 }
 
 func TestHistoryRetentionAndPrune(t *testing.T) {
 	dir := t.TempDir()
-	store := topology.NewStore("weave", 5*time.Minute)
-	h, err := Open(dir, "weave", store, nil, nil)
+	h, err := Open(dir, "weave", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,11 +118,11 @@ func TestHistoryRetentionAndPrune(t *testing.T) {
 	if err := h.flushOnce(old.Add(2 * time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if metrics5, metrics1, _, err := h.Counts(context.Background()); err != nil || metrics5 != 1 || metrics1 != 1 {
+	if metrics5, metrics1, err := h.Counts(context.Background()); err != nil || metrics5 != 1 || metrics1 != 1 {
 		t.Fatalf("before prune counts = %d/%d err=%v", metrics5, metrics1, err)
 	}
 	h.prune(now)
-	metrics5, metrics1, _, err := h.Counts(context.Background())
+	metrics5, metrics1, err := h.Counts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

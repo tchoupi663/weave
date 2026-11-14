@@ -30,37 +30,59 @@ kubectl apply -f deploy/gitops/apps/target-app-local.yaml
 
 ## Weave app
 
-`charts/weave` is the observed-topology app. It is deployed separately from the
-Target App, into `weave-system`, and watches the Target App's namespace through
-Hubble Relay:
+`charts/weave` is the umbrella chart for the observed-topology app. It renders
+four services into `weave-system` and watches the Target App's namespace through
+Hubble Relay. [ADR-0006](../docs/adr/0006-weave-service-decomposition.md) records
+the split and the internal contracts.
+
+| Service | Role | State |
+| --- | --- | --- |
+| `weave-live` | Hubble and Beyla ingest, observed graph, snapshot/SSE/reset | in memory |
+| `weave-history` | DuckDB metrics, incidents, evidence, timeline, recording gaps | `weave-data` PVC |
+| `weave-inventory` | Argo declared workloads, lifecycle, change events | `weave-inventory-data` PVC |
+| `weave-api` | Built UI and the single browser origin; proxies `/api/*` | none |
+
+Bring the stack up in one command:
 
 ```bash
-docker build -t weave-app:dev -f services/weave/Dockerfile services/weave
-kind load docker-image weave-app:dev --name kind
-helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace
-kubectl -n weave-system port-forward svc/weave 8090:8080
+./scripts/weave-up.sh
 ```
 
-The chart needs no Kubernetes API permissions. It reads only the Target App's
-observed flows, plus its own pod metadata from Hubble. It does not install
-network policies, mutate the Target App, or read the expected topology.
+For the manual path:
 
-The chart creates a 2 GiB `weave-data` PVC and mounts it at `/data`. SQLite and
-DuckDB are single-writer stores, so the Deployment uses the `Recreate` strategy;
-do not scale Weave above one replica. `persistence.accessMode` defaults to
-`ReadWriteOnce` and can be set to `ReadWriteOncePod` on storage classes that
-support it.
+```bash
+for service in live history inventory api; do
+  docker build --target "$service" -t "weave-${service}:dev" -f services/weave/Dockerfile services/weave
+  kind load docker-image "weave-${service}:dev" --name kind
+done
+helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace
+kubectl -n weave-system rollout status deploy/weave-api --timeout=180s
+kubectl -n weave-system port-forward svc/weave-api 8090:8080
+```
 
-Weave also needs a read-only Argo CD token to read the declared workload
+The chart needs no Kubernetes API permissions. The services read only the
+Target App's observed flows, plus their own pod metadata from Hubble. They do
+not install network policies, mutate the Target App, or read the expected
+topology.
+
+The chart creates the `weave-data` (2 GiB) and `weave-inventory-data` (1 GiB)
+PVCs. SQLite and DuckDB are single-writer stores, so `weave-history` and
+`weave-inventory` each run one replica with the `Recreate` strategy; do not scale
+those two deployments above one replica. The history subchart reuses an existing
+`weave-data` volume, so recorded incidents survive the migration from the
+single-process release. `persistence.accessMode` defaults to `ReadWriteOnce` and
+can be set to `ReadWriteOncePod` on storage classes that support it.
+
+`weave-inventory` needs a read-only Argo CD token to read the declared workload
 inventory. Create the `weave-argocd-token` secret as described in
 [`platform/argocd/README.md`](platform/argocd/README.md) before deploying. Weave
 still has no Kubernetes API RBAC.
 
-The Weave image builds with CGO because DuckDB is embedded. It uses a Debian
-build/runtime image, not a static Alpine binary.
+Only the `weave-history` image needs CGO because DuckDB is embedded there. All
+images use a Debian build/runtime base, not a static Alpine binary.
 
-Weave also exposes `POST /v1/traces` for OTLP HTTP/protobuf spans. Install the
-Beyla platform addon after Weave so the spans have a receiver:
+`weave-live` exposes `POST /v1/traces` for OTLP HTTP/protobuf spans. Install
+the Beyla platform addon after Weave so the spans have a receiver:
 
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts

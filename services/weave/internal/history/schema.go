@@ -1,23 +1,6 @@
 package history
 
 const sqliteSchema = `
-CREATE TABLE IF NOT EXISTS change_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  occurred_at TEXT NOT NULL,
-  source TEXT NOT NULL,
-  type TEXT NOT NULL,
-  workload TEXT NOT NULL,
-  kind TEXT NOT NULL DEFAULT '',
-  details TEXT NOT NULL DEFAULT '{}'
-);
-CREATE INDEX IF NOT EXISTS change_events_occurred_at ON change_events(occurred_at);
-
-CREATE TABLE IF NOT EXISTS workload_states (
-  workload TEXT PRIMARY KEY,
-  state TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS incidents (
   id TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -33,6 +16,13 @@ CREATE TABLE IF NOT EXISTS incidents (
   evidence_json TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS incidents_created_at ON incidents(created_at);
+
+CREATE TABLE IF NOT EXISTS recording_gaps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_ts TEXT NOT NULL,
+  to_ts TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS recording_gaps_from_ts ON recording_gaps(from_ts);
 `
 
 const duckDBEdgeSchema = `

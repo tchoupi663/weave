@@ -1,22 +1,33 @@
 # Weave topology contract
 
-This is the contract between the Weave engine, the Operator UI, and the future
-Agent/benchmark consumers. The live topology contract remains v1; history,
+This is the contract between the Weave services behind `weave-api`, the
+Operator UI, and the future Agent/benchmark consumers. The live topology contract remains v1; history,
 incidents, and the incident timeline are the v2 incident-replay contract.
 
 ## Runtime
 
-- Weave runs as one Go process in `weave-system`.
-- It follows `hubble-relay.kube-system.svc.cluster.local:80` over gRPC for L4.
-- It accepts OTLP HTTP/protobuf traces at `POST /v1/traces` from Grafana Beyla for HTTP L7.
-- It watches one namespace, `weave`, from `WATCH_NAMESPACE`.
-- It does not call the Kubernetes API and requires no Kubernetes RBAC.
-- It calls the Argo CD API read-only with a token to read the declared workload
-  inventory for `target-app-local`. That token is the only declared-state input.
-- It does not modify the Target App, install Cilium policies, or insert a proxy.
-- The web build is served from `/app/web/dist` by the same process.
-- It runs as one pod with one PVC mounted at `DATA_DIR`; SQLite and DuckDB live
-  on that volume. The Deployment uses `Recreate` because both are single-writer.
+Weave runs as four services in `weave-system`; [ADR-0006](adr/0006-weave-service-decomposition.md)
+records the split. The browser and Agent contracts below are unchanged from the
+single-process release, and `weave-api` is their only origin.
+
+- `weave-live` follows `hubble-relay.kube-system.svc.cluster.local:80` over gRPC
+  for L4, accepts OTLP HTTP/protobuf traces at `POST /v1/traces` from Grafana
+  Beyla for HTTP L7, serves the live snapshot/SSE/reset, and pushes accepted
+  observations to `weave-history`.
+- `weave-history` owns DuckDB edge metrics and SQLite incidents, evidence, and
+  recording gaps. It serves the incident and timeline resources.
+- `weave-inventory` reads the Argo CD desired workload inventory for
+  `target-app-local` through a read-only API token and serves lifecycle change
+  events.
+- `weave-api` serves the built UI from `/app/web/dist` and proxies the `/api/*`
+  paths to the owning service.
+
+All services watch one namespace, `weave`, and none calls the Kubernetes API;
+Weave needs no Kubernetes RBAC. No service modifies the Target App, installs
+Cilium policies, or inserts a proxy. `weave-history` and `weave-inventory` are
+single-replica with `Recreate`, each on its own ReadWriteOnce PVC: `weave-data`
+(SQLite + DuckDB) and `weave-inventory-data` (SQLite). Internal service
+contracts are in [`weave-internal-api.md`](weave-internal-api.md).
 
 ## Topology semantics
 
@@ -176,7 +187,7 @@ App; that is the Simulator's `/admin/reset` path.
 
 ### `POST /v1/traces`
 
-OTLP HTTP/protobuf trace receiver for Beyla. Weave reads only client spans in
+OTLP HTTP/protobuf trace receiver for Beyla, served by `weave-live`. It reads only client spans in
 the watched namespace, keeps their HTTP method, normalized path, status,
 duration, source Deployment, and destination service/port, and discards
 headers, query strings, and bodies. It returns an empty OTLP export response
@@ -184,14 +195,26 @@ with HTTP 200. Malformed payloads return 400; oversized payloads return 413.
 
 ### `GET /api/health` and `GET /health`
 
-Always returns HTTP 200 while the process is alive:
+`GET /health` is the local process probe on every service and always returns
+HTTP 200 while that process is alive. `GET /api/health` is served by
+`weave-api` only and aggregates the three backends with a one-second timeout:
 
 ```json
-{"status":"ok","hubble_connected":true,"observed_flows":7439}
+{
+  "status": "degraded",
+  "hubble_connected": true,
+  "observed_flows": 7439,
+  "recording_gaps": 1,
+  "dropped_observations": 4,
+  "gap_active": false,
+  "dependencies": {"live": "ok", "history": "unavailable", "inventory": "ok"}
+}
 ```
 
-`status` is `degraded` when Relay is not connected. Kubernetes liveness does
-not kill the process for a Relay outage.
+`status` is `degraded` when any dependency is unavailable or degraded. The
+legacy fields `hubble_connected` and `observed_flows` are preserved. A history
+outage does not stop the live topology; it produces recording gaps reported by
+`weave-live`. Liveness probes never depend on another service.
 
 ### `POST /api/incidents`
 
@@ -247,6 +270,15 @@ can show the system working before the incident and then the affected period.
 The UI scrubs these frames. It does not query `GET /api/topology?at=...`; that
 historical full-graph resource remains deferred.
 
+The response also carries a top-level `gaps` array of recording intervals:
+
+```json
+"gaps": [{"from":"2026-11-14T10:09:12Z","to":"2026-11-14T10:09:41Z"}]
+```
+
+A gap is not zero traffic; it means observations were not recorded. The UI labels
+it as missing recording.
+
 ### `GET /api/changes?from=&to=&limit=`
 
 Returns lifecycle change events in the interval, newest first. `from` and `to`
@@ -256,18 +288,32 @@ Change Events are not L4 Events.
 
 ## Configuration
 
-| Environment | Default | Meaning |
-| --- | --- | --- |
-| `LISTEN_ADDR` | `:8080` | HTTP listen address |
-| `HUBBLE_RELAY_ADDR` | `hubble-relay.kube-system.svc.cluster.local:80` | Relay gRPC target |
-| `WATCH_NAMESPACE` | `weave` | Observed namespace |
-| `WINDOW` | `5m` | Activity window, 1m–1h |
-| `WEB_DIR` | `web/dist` | Built UI directory |
-| `DATA_DIR` | empty | Enable history at this directory; required for incidents |
-| `ARGOCD_URL` | empty | Base URL of the Argo CD API |
-| `ARGOCD_TOKEN` | empty | Read-only Argo API token |
-| `ARGOCD_APP` | `target-app-local` | Argo Application to read |
-| `ARGOCD_NAMESPACE` | watch namespace | Namespace used to filter declared workloads |
+Each service reads only its own variables; the chart sets them.
+
+| Service | Environment | Default | Meaning |
+| --- | --- | --- | --- |
+| `weave-live` | `LISTEN_ADDR` | `:8080` | HTTP listen address |
+| | `HUBBLE_RELAY_ADDR` | `hubble-relay.kube-system.svc.cluster.local:80` | Relay gRPC target |
+| | `WATCH_NAMESPACE` | `weave` | Observed namespace |
+| | `WINDOW` | `5m` | Activity window, 1m–1h |
+| | `HISTORY_URL` | empty | Observation-feed target; empty disables the feed |
+| `weave-history` | `LISTEN_ADDR` | `:8080` | HTTP listen address |
+| | `WATCH_NAMESPACE` | `weave` | Namespace folded into edge IDs |
+| | `DATA_DIR` | `/data` | SQLite and DuckDB directory |
+| | `FLUSH_GRACE` | `15s` | Delay before a bucket is flushed |
+| `weave-inventory` | `LISTEN_ADDR` | `:8080` | HTTP listen address |
+| | `WATCH_NAMESPACE` | `weave` | Namespace used to filter declared workloads |
+| | `DATA_DIR` | `/data` | SQLite directory |
+| | `LIVE_URL` | `http://weave-live:8080` | Observed-workload feed target |
+| | `ARGOCD_URL` | empty | Base URL of the Argo CD API |
+| | `ARGOCD_TOKEN` | empty | Read-only Argo API token |
+| | `ARGOCD_APP` | `target-app-local` | Argo Application to read |
+| | `ARGOCD_NAMESPACE` | `weave` | Namespace used to filter declared workloads |
+| `weave-api` | `LISTEN_ADDR` | `:8080` | HTTP listen address |
+| | `WEB_DIR` | `web/dist` | Built UI directory |
+| | `LIVE_URL` | `http://weave-live:8080` | Live backend |
+| | `HISTORY_URL` | `http://weave-history:8080` | Incident backend |
+| | `INVENTORY_URL` | `http://weave-inventory:8080` | Change-event backend |
 
 ## UI contract
 

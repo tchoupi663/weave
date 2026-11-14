@@ -1,4 +1,4 @@
-package api
+package live
 
 import (
 	"encoding/hex"
@@ -19,7 +19,7 @@ import (
 
 const maxOTLPBody = 8 << 20
 
-func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
+func (h *httpHandler) traces(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -39,7 +39,7 @@ func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
 	for _, resourceSpans := range request.GetResourceSpans() {
 		resource := attributeMap(resourceSpans.GetResource().GetAttributes())
 		namespace := resource["k8s.namespace.name"]
-		if namespace != s.store.Namespace() {
+		if namespace != h.live.store.Namespace() {
 			continue
 		}
 		source := sourceWorkload(resource)
@@ -60,16 +60,16 @@ func (s *Server) traces(w http.ResponseWriter, r *http.Request) {
 				case tracepb.Span_SPAN_KIND_CLIENT:
 					observation, ok = clientObservation(span, source, kind, pod, namespace)
 				case tracepb.Span_SPAN_KIND_SERVER:
-					observation, ok = s.serverObservation(span, source, kind, pod, namespace)
+					observation, ok = h.serverObservation(span, source, kind, pod, namespace)
 				}
-				if ok && s.store.IngestL7(observation) {
+				if ok && h.live.store.IngestL7(observation) {
 					accepted++
 				}
 			}
 		}
 	}
 	if accepted > 0 {
-		s.log.Debug("ingested HTTP observations", "accepted", accepted)
+		h.live.log.Debug("ingested HTTP observations", "accepted", accepted)
 	}
 
 	response, _ := proto.Marshal(&collectortrace.ExportTraceServiceResponse{})
@@ -130,7 +130,7 @@ func clientObservation(span *tracepb.Span, source, kind, pod, namespace string) 
 	}, true
 }
 
-func (s *Server) serverObservation(span *tracepb.Span, target, kind, pod, namespace string) (topology.L7Observation, bool) {
+func (h *httpHandler) serverObservation(span *tracepb.Span, target, kind, pod, namespace string) (topology.L7Observation, bool) {
 	attributes := attributeMap(span.GetAttributes())
 	peer := firstString(attributes, "client.address", "net.peer.name", "peer.service", "peer.address")
 	if peer == "" {
@@ -138,7 +138,7 @@ func (s *Server) serverObservation(span *tracepb.Span, target, kind, pod, namesp
 	}
 	source, sourceIP := targetHost(peer)
 	if source == "" && sourceIP != "" {
-		resolved, ok := s.store.ResolveWorkloadByIP(sourceIP)
+		resolved, ok := h.live.store.ResolveWorkloadByIP(sourceIP)
 		if !ok {
 			return topology.L7Observation{}, false
 		}

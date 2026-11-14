@@ -1,41 +1,66 @@
 # Weave
 
-The actual app: a Go process that follows Hubble Relay for L4, accepts
-HTTP spans from Grafana Beyla for L7, constructs a workload-level
-topology, and serves the Weave operator screen.
+The observed-topology and incident-replay app, split into four services:
+`weave-live`, `weave-history`, `weave-inventory`, and `weave-api`. The design,
+product truth, and contracts live at the repository root:
+[DESIGN.md](../../DESIGN.md), [PRODUCT.md](../../PRODUCT.md),
+[docs/weave-contract.md](../../docs/weave-contract.md), and
+[docs/weave-internal-api.md](../../docs/weave-internal-api.md). The split and
+its trade-offs are recorded in
+[ADR-0006](../../docs/adr/0006-weave-service-decomposition.md).
 
-The design and product truth live at the repository root:
-[DESIGN.md](../../DESIGN.md) and [PRODUCT.md](../../PRODUCT.md). The API and
-topology semantics are in [docs/weave-contract.md](../../docs/weave-contract.md).
+## Services
 
-## What it does
+- `cmd/live` + `internal/live` — follows Hubble Relay for L4, accepts Grafana
+  Beyla OTLP spans for L7, builds the in-memory workload graph, serves the
+  snapshot/SSE/reset paths, and batches accepted observations to history.
+- `cmd/history` + `internal/history` — owns DuckDB edge metrics and SQLite
+  incidents, evidence, timeline frames, and recording gaps.
+- `cmd/inventory` + `internal/inventory` — reconciles the Argo CD declared
+  workload inventory, owns lifecycle state and change events, and polls live for
+  observed workloads.
+- `cmd/api` + `internal/edge` — the built SPA and the single browser origin. It
+  proxies the frozen `/api/*` contract and aggregates dependency health.
+- `internal/contracts` — the only package shared across service boundaries.
+- `internal/topology` and `internal/hubble` are shared by live only; `web` is
+  the Vite/React screen.
 
-- `internal/hubble` follows `Observer.GetFlows` with `follow=true`.
-- `internal/topology` filters and deduplicates L4 flows, groups pods into
-  workloads, and keeps cumulative counters plus five-minute activity buckets.
-  L7 spans attach to those edges and keep separate request, status, latency,
-  and route aggregates.
-- `internal/api` serves `/api/topology`, `/api/stream`, `/api/reset`,
-  `/v1/traces`, and `/health`, and serves the built SPA.
-- `web` is the Vite/React screen.
-
-The process does not call the Kubernetes API and does not mutate the Target
-App. It uses one environment-configured namespace and the in-cluster Relay.
-Beyla is a separate privileged DaemonSet; see
-`deploy/platform/observability/README.md`.
+No service calls the Kubernetes API, and no service mutates the Target App.
 
 ## Local development
 
-Run the backend:
+Run the Target App port-forwards first (frontend `:8443` for traffic, Hubble
+Relay `:4245` for live):
 
 ```bash
+kubectl -n weave port-forward svc/frontend 8443:8000
 kubectl -n kube-system port-forward svc/hubble-relay 4245:80
-cd services/weave
-HUBBLE_RELAY_ADDR=127.0.0.1:4245 WATCH_NAMESPACE=weave LISTEN_ADDR=:8090 \
-  go run ./cmd/weave
 ```
 
-Run the UI with a proxy to that backend:
+Then the services, each in its own terminal. `weave-history` needs a writable
+directory; the others need the URLs of their upstreams:
+
+```bash
+# history
+cd services/weave
+DATA_DIR=$(mktemp -d) LISTEN_ADDR=:8081 go run ./cmd/history
+
+# live
+HUBBLE_RELAY_ADDR=127.0.0.1:4245 WATCH_NAMESPACE=weave LISTEN_ADDR=:8082 \
+  HISTORY_URL=http://127.0.0.1:8081 go run ./cmd/live
+
+# inventory (Argo optional; without ARGOCD_URL lifecycle is disabled)
+DATA_DIR=$(mktemp -d) LISTEN_ADDR=:8083 LIVE_URL=http://127.0.0.1:8082 \
+  ARGOCD_URL=http://argocd-server.argocd.svc.cluster.local ARGOCD_TOKEN=... \
+  ARGOCD_APP=target-app-local go run ./cmd/inventory
+
+# api
+LISTEN_ADDR=:8090 WEB_DIR=web/dist \
+  LIVE_URL=http://127.0.0.1:8082 HISTORY_URL=http://127.0.0.1:8081 \
+  INVENTORY_URL=http://127.0.0.1:8083 go run ./cmd/api
+```
+
+Run the UI with a proxy to the API:
 
 ```bash
 cd services/weave/web
@@ -43,7 +68,8 @@ npm ci
 VITE_API_PROXY=http://127.0.0.1:8090 npm run dev
 ```
 
-The production image builds the UI and serves it from `/app/web/dist`.
+The production images are built from `services/weave/Dockerfile` with
+`--target live|history|inventory|api`.
 
 ## Tests
 
@@ -56,10 +82,8 @@ npm ci
 npm run build
 ```
 
-The end-to-end script at the repository root builds the image, deploys the
-chart, runs the Simulator, and asserts the nine-node/eight-edge graph plus the
-five L7-bearing edges:
-
-```bash
-./scripts/weave-integration-test.sh
-```
+The root scripts cover the deployed system:
+`scripts/weave-up.sh` (one-command bring-up),
+`scripts/weave-integration-test.sh` (images, chart, Simulator, graph
+assertions, import boundaries), and
+`scripts/weave-degradation-test.sh` (history/inventory outage behaviour).

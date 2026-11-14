@@ -1,4 +1,4 @@
-package api
+package live
 
 import (
 	"bytes"
@@ -54,8 +54,7 @@ func TestOTLPTraceIngest(t *testing.T) {
 			Flags:           &flowpb.TCPFlags{SYN: true},
 		}}},
 	})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(New(store, t.TempDir(), logger))
+	server := httptest.NewServer(testLiveHandler(t, store))
 	defer server.Close()
 
 	request := &collectortrace.ExportTraceServiceRequest{
@@ -149,8 +148,7 @@ func TestOTLPServerSpanMapsPeerToSourceWorkload(t *testing.T) {
 		}}},
 	})
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(New(store, t.TempDir(), logger))
+	server := httptest.NewServer(testLiveHandler(t, store))
 	defer server.Close()
 
 	request := &collectortrace.ExportTraceServiceRequest{
@@ -213,4 +211,11 @@ func TestOTLPServerSpanMapsPeerToSourceWorkload(t *testing.T) {
 	if edge.L7.LatencySource != "server" || edge.L7.Requests != 1 {
 		t.Fatalf("server L7 = %+v", edge.L7)
 	}
+}
+
+func testLiveHandler(t *testing.T, store *topology.Store) http.Handler {
+	t.Helper()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	feed := NewFeed("", time.Second, 100, log)
+	return (&Live{log: log, store: store, feed: feed}).Handler()
 }

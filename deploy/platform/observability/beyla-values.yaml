@@ -16,7 +16,7 @@ config:
         - k8s_namespace: weave
           k8s_deployment_name: gateway
     otel_traces_export:
-      endpoint: http://weave.weave-system.svc.cluster.local:8080
+      endpoint: http://weave-live.weave-system.svc.cluster.local:8080
       protocol: http/protobuf
     attributes:
       kubernetes:

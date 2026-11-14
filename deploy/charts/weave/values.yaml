@@ -1,67 +1,95 @@
-replicaCount: 1
+global:
+  imagePullPolicy: IfNotPresent
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
 
-# Single writer: SQLite and DuckDB both live on one RWO PVC.
-strategy:
-  type: Recreate
+live:
+  image:
+    repository: weave-live
+    tag: dev
+  config:
+    hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
+    watchNamespace: weave
+    window: 5m
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
-image:
-  repository: weave-app
-  tag: dev
-  pullPolicy: IfNotPresent
+history:
+  image:
+    repository: weave-history
+    tag: dev
+  config:
+    watchNamespace: weave
+    flushGrace: 15s
+  persistence:
+    create: true
+    name: weave-data
+    size: 2Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 
-service:
-  type: ClusterIP
-  port: 8080
+inventory:
+  image:
+    repository: weave-inventory
+    tag: dev
+  config:
+    watchNamespace: weave
+    liveURL: http://weave-live:8080
+  persistence:
+    create: true
+    name: weave-inventory-data
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  argocd:
+    url: http://argocd-server.argocd.svc.cluster.local
+    app: target-app-local
+    namespace: weave
+    tokenSecret: weave-argocd-token
+    tokenKey: token
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
 
-config:
-  hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
-  watchNamespace: weave
-  window: 5m
-  dataDir: /data
-
-argocd:
-  url: http://argocd-server.argocd.svc.cluster.local
-  app: target-app-local
-  namespace: weave
-  tokenSecret: weave-argocd-token
-  tokenKey: token
-
-persistence:
-  enabled: true
-  size: 2Gi
-  storageClass: ""
-  # Single-writer history. ReadWriteOncePod is stricter where supported; use it
-  # explicitly for GKE or other classes that support it.
-  accessMode: ReadWriteOnce
-
-serviceAccount:
-  create: true
-  name: ""
-  automount: false
-
-resources:
-  requests:
-    cpu: 50m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
-
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 65532
-  runAsGroup: 65532
-  fsGroup: 65532
-  seccompProfile:
-    type: RuntimeDefault
-
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop:
-      - ALL
-
-nodeSelector: {}
-tolerations: []
-affinity: {}
+api:
+  image:
+    repository: weave-api
+    tag: dev
+  config:
+    liveURL: http://weave-live:8080
+    historyURL: http://weave-history:8080
+    inventoryURL: http://weave-inventory:8080
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

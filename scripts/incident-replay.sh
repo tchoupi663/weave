@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 20-minute Catalog incident acceptance replay.
-# Prerequisites: Target App port-forward on :8443, Weave port-forward on :8090,
-# Argo-managed Target App, Chaos Mesh, and the current Weave image deployed.
+# Prerequisites: Target App port-forward on :8443, a Weave port-forward on :8090
+# to svc/weave-api, Argo-managed Target App, and Chaos Mesh.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

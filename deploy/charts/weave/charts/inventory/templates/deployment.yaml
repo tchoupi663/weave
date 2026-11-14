@@ -1,32 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "weave.fullname" . }}
+  name: weave-inventory
   labels:
-    {{- include "weave.labels" . | nindent 4 }}
+    app.kubernetes.io/name: weave-inventory
+    app.kubernetes.io/part-of: weave
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   revisionHistoryLimit: 3
-  # One replica owns the SQLite/DuckDB files on a ReadWriteOnce PVC.
+  # Single writer: SQLite on a ReadWriteOnce PVC.
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "weave.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/name: weave-inventory
   template:
     metadata:
       labels:
-        {{- include "weave.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/name: weave-inventory
+        app.kubernetes.io/part-of: weave
     spec:
-      serviceAccountName: {{ include "weave.serviceAccountName" . }}
-      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: 10
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.global.podSecurityContext | nindent 8 }}
       containers:
-        - name: weave
+        - name: weave-inventory
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
           ports:
             - name: http
               containerPort: 8080
@@ -34,18 +35,12 @@ spec:
           env:
             - name: LISTEN_ADDR
               value: ":8080"
-            - name: HUBBLE_RELAY_ADDR
-              value: {{ .Values.config.hubbleRelayAddr | quote }}
             - name: WATCH_NAMESPACE
               value: {{ .Values.config.watchNamespace | quote }}
-            - name: WINDOW
-              value: {{ .Values.config.window | quote }}
-            - name: WEB_DIR
-              value: "/app/web/dist"
-            {{- if and .Values.persistence.enabled .Values.config.dataDir }}
             - name: DATA_DIR
-              value: {{ .Values.config.dataDir | quote }}
-            {{- end }}
+              value: "/data"
+            - name: LIVE_URL
+              value: {{ .Values.config.liveURL | quote }}
             {{- if .Values.argocd.url }}
             - name: ARGOCD_URL
               value: {{ .Values.argocd.url | quote }}
@@ -64,12 +59,10 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          {{- if .Values.persistence.enabled }}
+            {{- toYaml .Values.global.securityContext | nindent 12 }}
           volumeMounts:
             - name: data
-              mountPath: {{ .Values.config.dataDir | default "/data" | quote }}
-          {{- end }}
+              mountPath: /data
           livenessProbe:
             httpGet:
               path: /health
@@ -86,21 +79,7 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 3
-      {{- if .Values.persistence.enabled }}
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "weave.fullname" . }}-data
-      {{- end }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+            claimName: {{ .Values.persistence.name }}

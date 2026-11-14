@@ -1,4 +1,4 @@
-package history
+package inventory
 
 import (
 	"context"

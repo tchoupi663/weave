@@ -1,0 +1,5 @@
+apiVersion: v2
+name: history
+description: Weave durable history and incident service
+type: application
+version: 0.1.0

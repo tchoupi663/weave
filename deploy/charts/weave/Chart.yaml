@@ -1,6 +1,19 @@
 apiVersion: v2
 name: weave
-description: Weave observed topology, constructed from Hubble Relay flows.
+description: Weave observed topology and incident replay, decomposed into four services.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
+dependencies:
+  - name: live
+    repository: file://./charts/live
+    version: 0.1.0
+  - name: history
+    repository: file://./charts/history
+    version: 0.1.0
+  - name: inventory
+    repository: file://./charts/inventory
+    version: 0.1.0
+  - name: api
+    repository: file://./charts/api
+    version: 0.1.0

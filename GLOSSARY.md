@@ -7,8 +7,8 @@ into a time-bounded investigation surface.
 ## Language
 
 **Weave**:
-The topology and incident-replay app. It observes the Target App's L4/L7 traffic, reads the declared workload inventory, persists history, and serves the Operator screen and Agent read API. It is the consumer of the Simulator's traffic, not part of the Target App.
-_Avoid_: topology service, graph service.
+The topology and incident-replay system. It observes the Target App's L4/L7 traffic, reads the declared workload inventory, persists history, and serves the Operator screen and Agent read API. It names the system as a whole, not one of its services or processes. It is the consumer of the Simulator's traffic, not part of the Target App.
+_Avoid_: topology service, graph service, the backend.
 
 **Target App**:
 The dummy application under observation, comprising the App cluster: Frontend, API Gateway, Auth, Catalog, Orders, Payment, External Payment Provider, and Postgres.
@@ -156,6 +156,10 @@ _Avoid_: event, log.
 **History**:
 Persisted Change Events and time-bucketed edge telemetry that allow replay and evolution. SQLite stores incidents, Change Events, and workload state; DuckDB stores edge metric buckets. Retention is 5-second buckets for 24 hours, 1-minute rollups for 7 days, and Change Events for 30 days. This is separate from the five-minute Activity Window.
 _Avoid_: activity window, retention, time series.
+
+**Recording Gap**:
+A known interval in History during which observed traffic was not recorded because the recording path was interrupted. A Recording Gap is not zero traffic and not an Activity Window: it says the instrument was not recording, not that the Target App was quiet.
+_Avoid_: missing traffic, downtime, outage, no data.
 
 **Architecture Evolution**:
 Change in Declared Architecture and observed topology over time.

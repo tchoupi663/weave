@@ -36,6 +36,10 @@ echo "==> Check Target App in weave"
 kubectl -n weave get service/frontend >/dev/null
 kubectl -n weave get pods >/dev/null
 
+if ! kubectl -n weave-system get deployment/weave-live >/dev/null 2>&1; then
+  echo "note: weave-live is not deployed yet; the script installs the umbrella chart" >&2
+fi
+
 if ! kubectl -n beyla-system get daemonset/beyla >/dev/null 2>&1; then
   echo "Beyla is not installed. See deploy/platform/observability/README.md." >&2
   exit 1
@@ -70,17 +74,51 @@ fi
 echo "==> Go tests"
 (cd services/weave && go test ./...)
 
-echo "==> Build image"
-docker build -t weave-app:dev -f services/weave/Dockerfile services/weave
-kind load docker-image weave-app:dev --name kind
+echo "==> Import boundaries"
+check_boundary() {
+  local cmd="$1"; shift
+  local deps
+  deps=$(cd services/weave && go list -deps "./cmd/${cmd}")
+  for forbidden in "$@"; do
+    if grep -q "internal/${forbidden}$" <<<"$deps"; then
+      echo "boundary violation: cmd/${cmd} imports internal/${forbidden}" >&2
+      exit 1
+    fi
+  done
+}
+check_boundary live history inventory edge
+check_boundary history live inventory edge
+check_boundary inventory live history edge
+check_boundary api live history inventory
+
+echo "==> Build service images"
+for service in live history inventory api; do
+  docker build --target "$service" -t "weave-${service}:dev" -f services/weave/Dockerfile services/weave
+  kind load docker-image "weave-${service}:dev" --name kind
+done
+
+echo "==> Preserve history volume and stop the legacy deployment"
+if kubectl -n weave-system get pvc weave-data >/dev/null 2>&1; then
+  kubectl -n weave-system annotate pvc weave-data helm.sh/resource-policy=keep --overwrite >/dev/null
+fi
+if kubectl -n weave-system get deployment weave >/dev/null 2>&1; then
+  kubectl -n weave-system scale deployment/weave --replicas=0 >/dev/null
+  kubectl -n weave-system delete deployment/weave service/weave --ignore-not-found >/dev/null
+fi
 
 echo "==> Deploy Weave"
-helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace --set image.tag=dev
-kubectl -n weave-system rollout restart deploy/weave
-kubectl -n weave-system rollout status deploy/weave --timeout=120s
+helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace \
+  --set live.image.tag=dev \
+  --set history.image.tag=dev \
+  --set inventory.image.tag=dev \
+  --set api.image.tag=dev
+for deployment in weave-live weave-history weave-inventory weave-api; do
+  kubectl -n weave-system rollout restart "deployment/$deployment"
+  kubectl -n weave-system rollout status "deployment/$deployment" --timeout=180s
+done
 
 echo "==> Port-forward Weave on ${WEAVE_PORT}"
-kubectl -n weave-system port-forward svc/weave "${WEAVE_PORT}:8080" \
+kubectl -n weave-system port-forward svc/weave-api "${WEAVE_PORT}:8080" \
   >"$ROOT/.cache/weave-portforward.log" 2>&1 &
 PF_WEAVE_PID=$!
 ready=0
@@ -107,9 +145,18 @@ for _ in $(seq 1 60); do
 done
 if [[ "$connected" != "1" ]]; then
   echo "Weave could not connect to Hubble Relay" >&2
-  kubectl -n weave-system logs deploy/weave --tail=100 >&2
+  kubectl -n weave-system logs deploy/weave-live --tail=100 >&2
   exit 1
 fi
+
+echo "==> Dependency health"
+curl -fsS "http://127.0.0.1:${WEAVE_PORT}/api/health" | python3 -c '
+import json, sys
+health = json.load(sys.stdin)
+deps = health.get("dependencies", {})
+assert health.get("status") == "ok", health
+assert deps.get("live") == "ok" and deps.get("history") == "ok" and deps.get("inventory") == "ok", deps
+'
 
 echo "==> Reset observed graph"
 curl -fsS -X POST "http://127.0.0.1:${WEAVE_PORT}/api/reset" >/dev/null

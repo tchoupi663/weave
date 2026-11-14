@@ -1,11 +1,12 @@
-Weave is running in namespace {{ .Release.Namespace }}.
+Weave is deployed as four services in namespace {{ .Release.Namespace }}:
 
-Open the topology screen from your machine:
+  weave-live       Hubble + Beyla ingest, observed graph, snapshot/SSE
+  weave-history    DuckDB metrics, incidents, evidence, timeline
+  weave-inventory  Argo declared workloads, lifecycle, change events
+  weave-api        Operator UI and the single browser origin
 
-  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "weave.fullname" . }} 8090:{{ .Values.service.port }}
+Open the UI:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/weave-api 8090:8080
 
 Then open http://127.0.0.1:8090
-
-Weave watches namespace {{ .Values.config.watchNamespace | quote }} through
-{{ .Values.config.hubbleRelayAddr }}. It does not query the Kubernetes API and
-does not modify the Target App.

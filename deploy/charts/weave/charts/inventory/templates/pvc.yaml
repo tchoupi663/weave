@@ -1,0 +1,20 @@
+{{- if .Values.persistence.create }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.persistence.name }}
+  labels:
+    app.kubernetes.io/name: weave-inventory
+    app.kubernetes.io/part-of: weave
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}

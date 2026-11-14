@@ -13,14 +13,17 @@ operator instrument: the graph and the evidence are the product.
 
 - `services/app/` — the Target App: Vite frontend behind NGINX, API Gateway, Auth, Catalog, Orders (Postgres), Payment, and the External Payment Provider.
 - `services/simulator/` — the CLI that runs Bounce, Browse, and Order Journeys and writes a JSON report with the Expected Topology.
-- `services/weave/` — the app: a Go topology/history service and incident API with a Vite/React operator screen.
+- `services/weave/` — the app, split into four Go services: `weave-live`, `weave-history`, `weave-inventory`, and `weave-api` (the operator screen and single browser origin).
 - `compose.yaml` — local Docker Compose stack for the Target App.
 - `deploy/` — Kubernetes: Helm charts, kind + Cilium bootstrap, Argo CD, Chaos Mesh, and Beyla. See [deploy/README.md](deploy/README.md).
 - `expected-topology.yaml` — the healthy fixture's expected nodes and edges.
 - `scripts/integration-test.sh` — unit tests, frontend build, Compose, contract checks, and a short Simulator run.
 - `scripts/incident-replay.sh` — the 20-minute acceptance harness: 15-minute baseline, 2-minute Catalog fault, 3-minute recovery, then incident creation.
+- `scripts/weave-up.sh` — build, kind-load, and install the four-service Weave stack, then port-forward the UI.
+- `scripts/weave-degradation-test.sh` — verify that a history or inventory outage degrades only its own panels.
 - `docs/adr/0005-incident-replay.md` — the incident-replay architecture.
-- `docs/acceptance.md` — the recorded acceptance run and its evidence.
+- `docs/adr/0006-weave-service-decomposition.md` — the four-service architecture and its contracts.
+- `docs/acceptance.md` — the recorded acceptance runs and their evidence.
 
 ## Requirements
 
@@ -30,8 +33,8 @@ operator instrument: the graph and the evidence are the product.
 - `kind`, `kubectl`, and `helm` for the in-cluster path, with Cilium/Hubble,
   Argo CD, Chaos Mesh, and Beyla installed.
 
-Weave builds with CGO because DuckDB is embedded. The image is a Debian build
-and runtime, not a static Alpine binary.
+Only `weave-history` needs CGO because DuckDB is embedded there. Every service
+image is a Debian build and runtime, not a static Alpine binary.
 
 ## Run the Target App
 
@@ -57,27 +60,40 @@ Open <https://localhost:8443> and accept the self-signed certificate. Demo login
 
 ## Run Weave
 
-Weave runs in `weave-system` and watches the Target App in `weave`. It reads
-Hubble Relay and Beyla, not the Kubernetes API. It persists history in one
-`weave-data` PVC and reads the Argo CD application `target-app-local` through a
-read-only API token.
+Weave runs as four services in `weave-system` and watches the Target App in
+`weave`. [ADR-0006](docs/adr/0006-weave-service-decomposition.md) records the
+split, the data ownership, and the internal contracts.
+
+| Service | Role | State |
+| --- | --- | --- |
+| `weave-live` | Hubble and Beyla ingest, observed graph, snapshot/SSE/reset, observation feed | in memory |
+| `weave-history` | DuckDB metrics, incidents, evidence, timeline, recording gaps | `weave-data` PVC |
+| `weave-inventory` | Argo declared workloads, lifecycle, change events | `weave-inventory-data` PVC |
+| `weave-api` | The built UI and the single browser origin; proxies the frozen `/api/*` contract | none |
+
+`weave-live` follows Hubble Relay and accepts Beyla's OTLP traces. `weave-history`
+owns both embedded databases. `weave-inventory` is the only service that reads
+the Argo CD application `target-app-local`, through a read-only API token. No
+service calls the Kubernetes API.
 
 ```bash
-docker build -t weave-app:dev -f services/weave/Dockerfile services/weave
-kind load docker-image weave-app:dev --name kind
-helm upgrade --install weave deploy/charts/weave -n weave-system --create-namespace
-kubectl -n weave-system rollout status deploy/weave --timeout=120s
-kubectl -n weave-system port-forward svc/weave 8090:8080
+./scripts/weave-up.sh
 ```
 
-The chart uses a 2 GiB PVC mounted at `/data`. The Deployment uses the
-`Recreate` strategy because SQLite and DuckDB are single-writer stores on a
-ReadWriteOnce volume. `persistence.accessMode` is configurable; use
-`ReadWriteOncePod` where the storage class supports it.
+That builds and kind-loads the four images, installs the umbrella chart, waits
+for all deployments, and port-forwards `svc/weave-api` to 8090. For the manual
+steps see [deploy/README.md](deploy/README.md).
 
-Create the read-only Argo token before Weave starts. Without it Weave records
-metrics but cannot reconcile declared/live lifecycle states. The exact
-commands are in [deploy/platform/argocd/README.md](deploy/platform/argocd/README.md).
+`weave-history` and `weave-inventory` are the only stateful services: one replica
+each, `Recreate`, on its own ReadWriteOnce PVC. The history subchart reuses an
+existing `weave-data` volume, so recorded incidents survive the migration from
+the single-process deployment. `persistence.accessMode` is configurable per
+subchart; use `ReadWriteOncePod` where the storage class supports it.
+
+Create the read-only Argo token before Weave starts. Without it `weave-inventory`
+records observed workloads but cannot reconcile declared/live lifecycle states.
+The exact commands are in
+[deploy/platform/argocd/README.md](deploy/platform/argocd/README.md).
 
 Beyla is a separate platform addon:
 
@@ -90,9 +106,9 @@ helm upgrade --install beyla grafana/beyla \
   -f deploy/platform/observability/beyla-values.yaml
 ```
 
-Beyla instruments only the `gateway` process. Gateway client spans cover
-Gateway → Auth/Catalog/Orders/Payment; gateway server spans cover
-Frontend → Gateway. It is a privileged eBPF DaemonSet and inserts no proxy.
+Beyla instruments only the `gateway` process and exports to `weave-live`. Gateway
+client spans cover Gateway → Auth/Catalog/Orders/Payment; gateway server spans
+cover Frontend → Gateway. It is a privileged eBPF DaemonSet and inserts no proxy.
 
 Open <http://127.0.0.1:8090>. The live topology starts empty; drive traffic with
 the Simulator after port-forwarding the Target App frontend:
@@ -104,24 +120,29 @@ kubectl -n weave port-forward svc/frontend 8443:8000
 
 ### Weave API
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/topology` | Live cumulative snapshot plus 60 activity buckets |
-| `GET /api/stream` | SSE topology snapshots every second |
-| `POST /api/reset` | Clear Weave's live graph; not the Target App |
-| `POST /v1/traces` | OTLP HTTP/protobuf receiver for Beyla |
-| `POST /api/incidents` | Create and materialize an incident window |
-| `GET /api/incidents` | List incidents |
-| `GET /api/incidents/{id}` | Incident with its evidence snapshot |
-| `PATCH /api/incidents/{id}` | Update notes or open/closed state |
-| `POST /api/incidents/{id}/recompute` | Recompute evidence for the stored window |
-| `GET /api/incidents/{id}/timeline` | Suspect-edge frames for scrubbing, from the baseline through the incident window |
-| `GET /api/changes?from=&to=` | Lifecycle change events |
-| `GET /health`, `/api/health` | Process and Relay status |
+`weave-api` serves the browser contract and proxies each path to its owner. The
+paths and payloads are unchanged from the single-process release.
 
-Seeded history: 5-second edge buckets for 24 hours, 1-minute rollups for 7
-days, and change events for 30 days. Raw flows and spans are never retained.
-See [the Weave contract](docs/weave-contract.md).
+| Endpoint | Owner | Purpose |
+| --- | --- | --- |
+| `GET /api/topology` | `weave-live` | Live cumulative snapshot plus 60 activity buckets |
+| `GET /api/stream` | `weave-live` | SSE topology snapshots every second |
+| `POST /api/reset` | `weave-live` | Clear Weave's live graph; not the Target App |
+| `POST /v1/traces` | `weave-live` | OTLP HTTP/protobuf receiver for Beyla; called directly, not proxied |
+| `POST /api/incidents` | `weave-history` | Create and materialize an incident window |
+| `GET /api/incidents` | `weave-history` | List incidents |
+| `GET /api/incidents/{id}` | `weave-history` | Incident with its evidence snapshot |
+| `PATCH /api/incidents/{id}` | `weave-history` | Update notes or open/closed state |
+| `POST /api/incidents/{id}/recompute` | `weave-history` | Recompute evidence for the stored window |
+| `GET /api/incidents/{id}/timeline` | `weave-history` | Suspect-edge frames plus recording gaps |
+| `GET /api/changes?from=&to=` | `weave-inventory` | Lifecycle change events |
+| `GET /health`, `/api/health` | `weave-api` | Local health plus aggregated dependency status |
+
+Seeded history: 5-second edge buckets for 24 hours, 1-minute rollups for 7 days,
+and change events for 30 days. Raw flows and spans are never retained. Recording
+gaps are explicit: a history outage is not zero traffic. See
+[the Weave contract](docs/weave-contract.md) and
+[the internal service contract](docs/weave-internal-api.md).
 
 ### Incident view
 
@@ -195,7 +216,11 @@ Weave's own checks:
 (cd services/weave && go test ./...)
 (cd services/weave/web && npm ci && npm run build)
 ./scripts/weave-integration-test.sh
+./scripts/weave-degradation-test.sh
 ```
+
+The integration script also asserts the service import boundaries, so no service
+package can start importing another service's internals.
 
 Manual:
 
@@ -227,6 +252,7 @@ Manual:
 - [Run spec](docs/run-spec.md)
 - [Target App contract](docs/target-app-contract.md)
 - [Weave contract](docs/weave-contract.md)
+- [Weave internal service contract](docs/weave-internal-api.md)
 - [Acceptance](docs/acceptance.md)
 - [Glossary](GLOSSARY.md)
 - [Product](PRODUCT.md)
@@ -236,6 +262,7 @@ Manual:
 - [ADR-0003: observed topology](docs/adr/0003-observed-topology.md)
 - [ADR-0004: L7 observability](docs/adr/0004-l7-observability.md)
 - [ADR-0005: incident replay](docs/adr/0005-incident-replay.md)
+- [ADR-0006: service decomposition](docs/adr/0006-weave-service-decomposition.md)
 
 ## Not included
 

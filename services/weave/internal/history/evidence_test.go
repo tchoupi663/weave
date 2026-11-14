@@ -10,7 +10,7 @@ import (
 
 func TestCreateIncidentFindsConnectedSuspectRegion(t *testing.T) {
 	dir := t.TempDir()
-	h, err := Open(dir, "weave", nil, nil, nil)
+	h, err := Open(dir, "weave", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestCreateIncidentFindsConnectedSuspectRegion(t *testing.T) {
 
 func TestIncidentTimelineReturnsSuspectBuckets(t *testing.T) {
 	dir := t.TempDir()
-	h, err := Open(dir, "weave", nil, nil, nil)
+	h, err := Open(dir, "weave", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

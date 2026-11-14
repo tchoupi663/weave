@@ -9,7 +9,7 @@ evidence record, not a claim that the suspect region is the root cause.
 |---|---|
 | Cluster | kind, Cilium/Hubble, Argo CD, Chaos Mesh, Beyla |
 | Target App | Argo `target-app-local`, namespace `weave` |
-| Weave | `weave-app:dev`, namespace `weave-system`, 2 GiB PVC |
+| Weave | four services (`weave-live`, `weave-history`, `weave-inventory`, `weave-api`), namespace `weave-system`, `weave-data` + `weave-inventory-data` PVCs |
 | Replay | `services/simulator/testdata/incident-replay.yaml` |
 | Traffic | 20 minutes, concurrency 50, 30/50/20 mix |
 | Fault | Catalog `GET /api/products` → HTTP 500, 100%, 2 minutes |

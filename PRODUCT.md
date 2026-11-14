@@ -48,7 +48,12 @@ edges. The diagnosis is a suspect region, not a root cause.
 - Chaos Mesh injects the acceptance fault with an `HTTPChaos` object.
 - The Simulator runs outside the cluster and enters through a local
   port-forward.
-- Weave runs as one pod with one 2 GiB PVC.
+- Weave runs as four services in `weave-system`: `weave-live` (ingest and
+  observed graph), `weave-history` (metrics, incidents, evidence, recording
+  gaps), `weave-inventory` (declared workloads, lifecycle, change events), and
+  `weave-api` (the built UI and the only browser origin). Each service has one
+  owner and one upstream; `weave-history` and `weave-inventory` are the only
+  stateful services, each on its own ReadWriteOnce PVC.
 - The first screen is used on a desktop while a run is active, often beside a
   terminal and the Simulator report.
 
@@ -58,8 +63,9 @@ edges. The diagnosis is a suspect region, not a root cause.
   Edges are ordered workload pairs plus destination port; replies fold into the
   request edge.
 - The live graph is cumulative since start/reset with a five-minute activity
-  window. History is separate: SQLite for incidents, change events, and
-  workload state; DuckDB for edge metric buckets.
+  window. History is separate: `weave-history` owns SQLite incidents, evidence,
+  and recording gaps plus DuckDB edge metric buckets; `weave-inventory` owns
+  SQLite workload state and change events.
 - Retention: 5-second buckets for 24 hours, 1-minute rollups for 7 days, change
   events for 30 days. Raw flows and spans are not retained.
 - L4 plus HTTP observations. Hubble gives connections, events, ports, verdicts,
@@ -83,6 +89,15 @@ edges. The diagnosis is a suspect region, not a root cause.
   at the 15-minute baseline so the transition from normal to affected is
   visible. It is not a full historical topology reconstruction.
 - The declared source is Argo CD. Weave does not gain Kubernetes API RBAC.
+- A service outage degrades only its own surface: no topology without
+  `weave-live`, no incident data without `weave-history`, no change events
+  without `weave-inventory`. Liveness and readiness never depend on another
+  service. A history outage is recorded as a **Recording Gap**, not as zero
+  traffic.
+- The browser contract is frozen and served only by `weave-api`; services
+  communicate over versioned internal HTTP contracts. Cilium Gateway API or an
+  Ingress is a later front door for TLS and auth, not a change to the browser
+  contract.
 - No authentication in this slice. The surface is internal and reached through
   a local port-forward.
 - The Target App is not modified by Weave or by the Beyla observer.
@@ -119,6 +134,15 @@ edges. The diagnosis is a suspect region, not a root cause.
   `edge_5s=4134`, `edge_1m=514`, `changes=127`.
 - A short run after restart restored 9 nodes, 8 edges, 5 HTTP edges, zero
   failures.
+- The four-service cutover preserved the stored incident byte-identically:
+  incident JSON hash
+  `e950d501bf54733a1c16e4418da72e0207926627539d2e8eb9885cbbae9e2ad1` before and
+  after; the timeline differs only by its additive `gaps` field.
+- A short Simulator run against the four-service stack produced 9 nodes, 8 edges,
+  5 HTTP edges, and 1,540 L7 requests with zero dropped observations.
+- The degradation test passed: history down leaves topology up and incidents at
+  502; inventory down leaves incidents and topology up and changes at 502; both
+  recover, and the history outage becomes a Recording Gap.
 - There is no production usage data. Do not invent request rates, latency,
   customers, or benchmark claims.
 

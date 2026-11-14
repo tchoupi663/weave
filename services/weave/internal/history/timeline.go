@@ -35,6 +35,9 @@ type IncidentTimeline struct {
 	BucketSeconds int             `json:"bucket_seconds"`
 	SuspectEdges  []string        `json:"suspect_edges"`
 	Frames        []TimelineFrame `json:"frames"`
+	// Gaps are intervals where observations were not recorded at all. A gap is
+	// not zero traffic; the UI must label it as missing recording.
+	Gaps []Gap `json:"gaps"`
 }
 
 const maxTimelineFrames = 720
@@ -132,11 +135,16 @@ ORDER BY bucket_start, edge_id`, table)
 		sort.Slice(frames[index].Edges, func(i, j int) bool { return frames[index].Edges[i].EdgeID < frames[index].Edges[j].EdgeID })
 	}
 	sort.Strings(suspects)
+	gaps, err := h.Gaps(ctx, start, contextEnd)
+	if err != nil {
+		return nil, err
+	}
 	return &IncidentTimeline{
 		Window:        window,
 		Context:       TimeRange{Start: start.UTC(), End: contextEnd.UTC()},
 		BucketSeconds: int(bucket / time.Second),
 		SuspectEdges:  suspects,
 		Frames:        frames,
+		Gaps:          gaps,
 	}, nil
 }
