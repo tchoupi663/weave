@@ -176,17 +176,20 @@ The 20-minute replay is:
 ./scripts/incident-replay.sh
 ```
 
-The script expects the Target App port-forward on `:8443` and Weave on `:8090`.
+The script expects the Target App port-forward on `:8443` and the Weave API/BFF on `:8090` (`svc/weave-api`).
 It applies `deploy/platform/chaos/fixtures/catalog-http-500.yaml` at the
 15-minute mark, removes it after two minutes, waits for the three-minute
 recovery, and creates the incident through `POST /api/incidents`.
 
 The expected result is a suspect region containing Catalog and
 Gateway → Catalog, with Frontend → Gateway as the cascade. Auth and Payment must
-be outside it. **The 2026-11-14 acceptance passed**: the suspect edges were
-Frontend → Gateway and Gateway → Catalog, with both onsets in the first fault
-bucket; Auth and Payment were outside. The recorded evidence and restart hashes
-are in [docs/acceptance.md](docs/acceptance.md).
+be outside it. **The 2026-11-14 acceptance passed on both the single-process and
+the four-service deployments.** On the four-service run the suspect edges were
+Frontend → Gateway and Gateway → Catalog with first-bucket onsets, Auth, Orders,
+and Payment were outside, the timeline had 205 frames and no Recording Gap in
+the incident context, and the incident survived a history/inventory restart with
+identical JSON. The recorded evidence and hashes are in
+[docs/acceptance.md](docs/acceptance.md).
 
 ## Run the Simulator
 

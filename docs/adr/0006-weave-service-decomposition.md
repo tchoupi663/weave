@@ -212,6 +212,12 @@ Implemented on 2026-11-14. The single process was replaced by `weave-live`,
 `deploy/charts/weave` renders four Deployments, four Services, and two PVCs.
 The external contract, the UI, and the Simulator were not modified.
 
+The cutover itself was one deployment change, not the stepwise strangler order
+described above: the four services were built and verified together against the
+existing `weave-data` volume, and the external contract was exercised through
+the BFF before and after. The stepwise order remains the plan if the migration
+is ever repeated without a working pause.
+
 Verification at cutover:
 
 - Go unit tests pass; internal feed contract tests run on both ends.
@@ -230,6 +236,12 @@ Verification at cutover:
 - A feed bug found during cutover (oversized observation batches rejected with
   413) was fixed before the acceptance rerun; `dropped_observations` stays 0
   during a Simulator run.
-- The 2026-11-14 acceptance was rerun against the four-service stack; the record
-  is in [`docs/acceptance.md`](../acceptance.md).
+- The 2026-11-14 acceptance was rerun against the four-service stack through the
+  BFF: incident `8a6a69ef4e60b57a1bbbf824`, fault window
+  `2026-11-14T19:26:21Z`–`19:28:21Z`, suspect edges Frontend → Gateway and
+  Gateway → Catalog with first-bucket onsets, Auth/Orders/Payment outside it,
+  and 205 scrubbable frames with no Recording Gap in the incident context. The
+  incident JSON hash was identical before and after a history/inventory restart
+  (`c7ecb9fe...`), and the pre-split incident remained byte-identical
+  (`e950d501...`). The record is in [`docs/acceptance.md`](../acceptance.md).
 

@@ -6,8 +6,8 @@
 [ADR-0006](adr/0006-weave-service-decomposition.md) splits Weave into four
 services. The external contract in [`weave-contract.md`](weave-contract.md) is
 unchanged: the browser and any future Agent still see one origin and the same
-paths. This document defines only the new, cluster-internal contracts. Until
-the split is live, this document describes the running internal contracts.
+paths. This document defines only the cluster-internal contracts between the
+services.
 
 ## Service map
 

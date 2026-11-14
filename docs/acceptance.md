@@ -1,7 +1,8 @@
 # Incident-replay acceptance
 
-This is the first-slice acceptance record for manual incident replay. It is an
-evidence record, not a claim that the suspect region is the root cause.
+This document records the incident-replay acceptance runs: the original
+single-process run and the four-service run after ADR-0006. Both are evidence
+records, not claims that the suspect region is the root cause.
 
 ## Configuration
 
@@ -27,7 +28,7 @@ jump over baseline.
 The incident, its evidence, and its timeline must remain readable after Weave
 restarts. The 5-second bucket count must also survive the restart.
 
-## Recorded result
+## Recorded result — single process (2026-11-14)
 
 **Status: PASS.** Run on 2026-11-14.
 
@@ -116,7 +117,83 @@ Auth and Payment are outside the region.
   flow heat panel.
 - `docs/images/weave-flow.png` — expanded flow heat panel.
 
-## Criteria
+## Recorded result — four-service stack (2026-11-14)
+
+**Status: PASS.** Run on 2026-11-14 against the umbrella chart: `weave-live`,
+`weave-history`, `weave-inventory`, and `weave-api`, one replica each. The
+history service reused the existing `weave-data` PVC, so the prior incident and
+metric history were present throughout the run.
+
+| Field | Result |
+|---|---|
+| Fault window | `2026-11-14T19:26:21Z` → `2026-11-14T19:28:21Z` |
+| Incident id | `8a6a69ef4e60b57a1bbbf824` |
+| Incident status | open |
+| Simulator exit | 1, expected because injected 500s failed journeys |
+| Bounce | 1,766 started / 1,766 completed / 0 failed |
+| Browse | 3,027 started / 2,034 completed / 993 failed |
+| Order | 1,159 started / 783 completed / 376 failed |
+| Total journey failures | 1,369, expected during the fault |
+
+### Suspect region
+
+```text
+suspect_edges:
+  workload:weave/frontend->workload:weave/gateway:8080
+  workload:weave/gateway->workload:weave/catalog:8082
+
+suspect_nodes:
+  catalog
+  frontend
+  gateway
+```
+
+Both suspect edges have onset `2026-11-14T19:26:25Z` (the first fault bucket)
+and reason `5xx rate`. Auth, Orders, and Payment are outside the region.
+
+### Evidence
+
+- Frontend → Gateway: 3,245 requests, 2,711 5xx in the incident window.
+- Gateway → Catalog: 2,787 requests, 2,712 5xx.
+- Route evidence: `GET /api/products` has 2,711 5xx on Frontend → Gateway and
+  2,712 on Gateway → Catalog; no other top route has 5xx.
+- Timeline: 205 frames at 5 seconds from the baseline through the incident end;
+  the additive `gaps` array is empty, so no Recording Gap fell inside the
+  incident context.
+- The observation feed reported zero dropped observations and zero recording
+  gaps during the healthy portion of the run.
+
+### Persistence and restart
+
+- Restarting `weave-history` and `weave-inventory` pods preserved the incident:
+  incident JSON hash `c7ecb9fec12bebb7d4617fb57754cbd35adad21fb49c0e7f6d136cdddf0e7ece`
+  was identical before and after; timeline JSON hash
+  `d8137022c3cb2f6accfab311416f8685b30505c38acd32ca692ae65420fe3bf7` was also
+  identical.
+- The incident recorded before the split is still byte-identical:
+  `e950d501bf54733a1c16e4418da72e0207926627539d2e8eb9885cbbae9e2ad1`.
+- History counters after restart: `edge_5s=11985`, `edge_1m=1482`.
+- The deliberate history restart produced one Recording Gap and 11 dropped
+  observations, reported by `weave-live`; no incident window overlaps it.
+
+### Criteria — four-service stack
+
+| Criterion | Result |
+|---|---|
+| Catalog in suspect region | pass |
+| Gateway → Catalog in suspect region | pass |
+| Frontend → Gateway cascade in suspect region | pass |
+| Auth, Orders, Payment outside suspect region | pass |
+| Fault route in evidence | pass |
+| 5-second timeline is scrubbable | pass, 205 frames |
+| No Recording Gap inside the incident context | pass |
+| Incident survives restart | pass |
+| Evidence survives restart | pass |
+| Timeline survives restart | pass |
+| Stored pre-split incident unchanged | pass |
+| Browser contract unchanged through `weave-api` | pass |
+
+## Criteria — single process
 
 | Criterion | Result |
 |---|---|
@@ -143,3 +220,9 @@ Auth and Payment are outside the region.
 - The generic all-connection host/probe acceptance remains deferred; the current
   filter keeps the Target App's ingress-scoped host behavior and fixture display
   names. The evaluated incident region is unaffected.
+- The first four-service acceptance attempt exposed an oversized observation
+  batch being rejected with HTTP 413 by the feed contract test. The batch
+  splitting was fixed before the recorded four-service run above.
+- The four-service run was driven through `svc/weave-api` on `:8090`, so the
+  browser-facing paths, SSE stream, and incident API were exercised through the
+  BFF rather than directly against the owning services.

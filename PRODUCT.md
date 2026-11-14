@@ -143,6 +143,15 @@ edges. The diagnosis is a suspect region, not a root cause.
 - The degradation test passed: history down leaves topology up and incidents at
   502; inventory down leaves incidents and topology up and changes at 502; both
   recover, and the history outage becomes a Recording Gap.
+- The four-service acceptance rerun passed on 2026-11-14: incident
+  `8a6a69ef4e60b57a1bbbf824`, fault `2026-11-14T19:26:21Z`–`19:28:21Z`, suspect
+  edges Frontend → Gateway and Gateway → Catalog with first-bucket onsets,
+  Auth/Orders/Payment outside, 205 timeline frames, and an empty `gaps` array
+  inside the incident context.
+- The four-service incident survived a history/inventory restart with an
+  identical JSON hash (`c7ecb9fe...`) and identical timeline
+  (`d8137022...`); history counters after restart were `edge_5s=11985`,
+  `edge_1m=1482`.
 - There is no production usage data. Do not invent request rates, latency,
   customers, or benchmark claims.
 

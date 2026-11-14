@@ -168,8 +168,25 @@ echo "==> Simulator run"
   go run ./cmd/sim run --config testdata/run-short.yaml --report "$ROOT/.cache/weave-integration.json"
 )
 
+echo "==> Wait for Beyla spans"
+span_ready=0
+for _ in $(seq 1 30); do
+  if curl -fsS "http://127.0.0.1:${WEAVE_PORT}/api/topology" 2>/dev/null | python3 -c '
+import json, sys
+totals = json.load(sys.stdin)["totals"]
+raise SystemExit(0 if totals["l7_edges"] == 5 and totals["l7_requests"] > 0 else 1)
+' 2>/dev/null; then
+    span_ready=1
+    break
+  fi
+  sleep 1
+done
+if [[ "$span_ready" != "1" ]]; then
+  echo "Beyla spans did not reach weave-live in time" >&2
+  exit 1
+fi
+
 echo "==> Assert constructed topology"
-sleep 2
 curl -fsS "http://127.0.0.1:${WEAVE_PORT}/api/topology" -o "$ROOT/.cache/weave-topology.json"
 python3 - "$ROOT/.cache/weave-topology.json" <<'PY'
 import json
