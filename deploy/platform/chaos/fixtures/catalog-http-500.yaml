@@ -1,0 +1,21 @@
+# Incident fixture: Catalog GET /api/products returns HTTP 500 for two minutes.
+# Apply after the 15-minute healthy baseline; delete after the window.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: HTTPChaos
+metadata:
+  name: catalog-http-500
+  namespace: weave
+spec:
+  mode: all
+  selector:
+    namespaces:
+      - weave
+    labelSelectors:
+      app: catalog
+  target: Response
+  port: 8082
+  method: GET
+  path: /api/products
+  replace:
+    code: 500
+  duration: "2m"

@@ -64,18 +64,18 @@ export function useHotEdges(edges: TopologyEdge[] | undefined): Set<string> {
     previous.current = counts
     if (!old) return
 
-    // One shuttle, on the busiest thread, at most once every two seconds.
-    // More than that turns a calm field into a pinball table.
+    // Two quiet shuttles on the busiest threads, refreshed often enough to
+    // read as traffic rather than a decorative pulse.
     const now = Date.now()
     const next = new Set<string>()
     const changes = edges
       .map((edge) => ({ edge, delta: edge.events - (old.get(edge.id) ?? 0) }))
       .filter((change) => change.delta > 0)
       .sort((a, b) => b.delta - a.delta)
-      .slice(0, 1)
+      .slice(0, 2)
     for (const { edge } of changes) {
       const last = lastPulse.current.get(edge.id) ?? 0
-      if (now - last < 2000) continue
+      if (now - last < 500) continue
       lastPulse.current.set(edge.id, now)
       next.add(edge.id)
     }
@@ -86,7 +86,7 @@ export function useHotEdges(edges: TopologyEdge[] | undefined): Set<string> {
     timer.current = window.setTimeout(() => {
       setHot(new Set())
       timer.current = null
-    }, 1200)
+    }, 1000)
   }, [edges])
 
   useEffect(() => () => {

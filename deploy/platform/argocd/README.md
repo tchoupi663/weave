@@ -38,3 +38,30 @@ kubectl apply -f deploy/gitops/apps/target-app-local.yaml
 
 The Application is left on manual sync. The repository intentionally does not
 enable self-heal; fault-injection experiments must not be reverted by Argo.
+
+
+## Weave's read-only API account
+
+The Argo values create the local account `weave` with the `weave-reader`
+project role. The role can only `get` applications.
+
+Create an API token for that account with an admin session, then store it for
+Weave:
+
+```sh
+# Port-forward the Argo API first: 18080 -> argocd-server:80
+ADMIN_TOKEN=$(curl -sS -X POST http://127.0.0.1:18080/api/v1/session \
+  -H 'Content-Type: application/json' \
+  -d "{\"username\":\"admin\",\"password\":\"$ARGOCD_ADMIN_PASSWORD\"}" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+WEAVE_TOKEN=$(curl -sS -X POST http://127.0.0.1:18080/api/v1/account/weave/token \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"weave-history","name":"weave history"}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+kubectl -n weave-system create secret generic weave-argocd-token \
+  --from-literal=token="$WEAVE_TOKEN"
+```
+
+The secret is not committed. Weave reads `ARGOCD_URL`, `ARGOCD_APP`, and the
+token from its chart values.

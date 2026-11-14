@@ -151,6 +151,11 @@ func (s *Store) IngestL7(obs L7Observation) bool {
 	}
 	edge.l7.add(obs, s.bucketFor(obs.Time))
 
+	if s.recorder != nil {
+		targetWorkload := strings.TrimPrefix(targetID, "workload:"+s.namespace+"/")
+		s.recorder.ObserveL7(obs.SourceWorkload, targetWorkload, obs.Port, obs)
+	}
+
 	return true
 }
 
@@ -449,6 +454,12 @@ func statusClass(code uint32) int {
 }
 
 var idSegment = regexp.MustCompile(`(?i)^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9]+|p[0-9]+|[0-9a-f]{16,})$`)
+
+// NormalizePath converts a request URL or path into the bounded route shape
+// used by the live topology and history.
+func NormalizePath(raw string) string {
+	return normalizePath(raw)
+}
 
 func normalizePath(raw string) string {
 	if raw == "" {

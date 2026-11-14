@@ -1,5 +1,9 @@
 replicaCount: 1
 
+# Single writer: SQLite and DuckDB both live on one RWO PVC.
+strategy:
+  type: Recreate
+
 image:
   repository: weave-app
   tag: dev
@@ -13,6 +17,22 @@ config:
   hubbleRelayAddr: hubble-relay.kube-system.svc.cluster.local:80
   watchNamespace: weave
   window: 5m
+  dataDir: /data
+
+argocd:
+  url: http://argocd-server.argocd.svc.cluster.local
+  app: target-app-local
+  namespace: weave
+  tokenSecret: weave-argocd-token
+  tokenKey: token
+
+persistence:
+  enabled: true
+  size: 2Gi
+  storageClass: ""
+  # Single-writer history. ReadWriteOncePod is stricter where supported; use it
+  # explicitly for GKE or other classes that support it.
+  accessMode: ReadWriteOnce
 
 serviceAccount:
   create: true
@@ -22,10 +42,10 @@ serviceAccount:
 resources:
   requests:
     cpu: 50m
-    memory: 64Mi
+    memory: 128Mi
   limits:
-    cpu: 250m
-    memory: 192Mi
+    cpu: 500m
+    memory: 512Mi
 
 podSecurityContext:
   runAsNonRoot: true

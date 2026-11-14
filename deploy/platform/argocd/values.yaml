@@ -4,6 +4,12 @@ global:
 configs:
   params:
     server.insecure: true
+  cm:
+    accounts.weave: apiKey
+  rbac:
+    policy.csv: |
+      p, role:weave-reader, applications, get, */*, allow
+      g, weave, role:weave-reader
 
 server:
   replicas: 1

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { formatCompact } from '../format'
 import { GRAPH_HEIGHT, GRAPH_WIDTH, threadGeometry, type GraphLayout } from '../layout'
-import type { Selection, Snapshot, StreamState } from '../types'
+import type { Selection, Snapshot, StreamState, TopologyEdge } from '../types'
 import { FitIcon, MinusIcon, PlusIcon } from '../icons'
 import { useForceGraph } from '../useForceGraph'
 
@@ -40,6 +40,18 @@ const MIN_WIDTH = 400
 const MAX_WIDTH = GRAPH_WIDTH * 2 // 50%, a hard floor on zoom-out
 const FAR_LABEL_ZOOM = 70
 const EDGE_LABEL_ZOOM = 90
+
+function errorRate(edge: TopologyEdge): number | null {
+  if (!edge.l7 || edge.l7.requests <= 0) return null
+  return (edge.l7.status['4xx'] + edge.l7.status['5xx']) / edge.l7.requests
+}
+
+function errorRateLabel(edge: TopologyEdge): string {
+  const rate = errorRate(edge)
+  if (rate === null) return ''
+  const percent = rate === 0 ? '0' : (rate * 100).toFixed(rate >= 0.1 ? 0 : 1)
+  return ` · ${percent}% err`
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -319,6 +331,11 @@ export function Graph({
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
         >
+          <defs>
+            <marker id="edge-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M0 0 L8 4 L0 8" className="edge-arrow-head" />
+            </marker>
+          </defs>
           <g className="edges">
             {viewEdges.map(({ edge, path, labelX, labelY }) => {
               const isSelected = selected?.kind === 'edge' && selected.id === edge.id
@@ -344,7 +361,7 @@ export function Graph({
                   onPointerEnter={() => onHover({ kind: 'edge', id: edge.id })}
                   onPointerLeave={() => onHover(null)}
                 >
-                  <path d={path} className="edge" />
+                  <path d={path} className="edge" markerEnd="url(#edge-arrow)" />
                   {isHot ? (
                     <path
                       key={`${edge.id}-${edge.last_seen}`}
@@ -354,8 +371,7 @@ export function Graph({
                     />
                   ) : null}
                   <text x={labelX} y={labelY} className="edge-label" textAnchor="middle" aria-hidden="true">
-                    {edge.protocol} · {edge.port}
-                    {edge.l7 ? <tspan className="edge-l7"> · L7</tspan> : null}
+                    {edge.protocol} · {edge.port}{errorRateLabel(edge)}
                   </text>
                   <path
                     d={path}

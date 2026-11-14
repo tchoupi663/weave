@@ -215,8 +215,10 @@ export function threadGeometry(
   const tx = target.x - ux * (target.r + 5)
   const ty = target.y - uy * (target.r + 5)
 
-  const mx = (sx + tx) / 2
-  const my = (sy + ty) / 2
+  // Put the title nearer the source so it does not collide with the target's
+  // name and event count on short downstream threads.
+  const mx = sx + (tx - sx) * 0.42
+  const my = sy + (ty - sy) * 0.42
   let nx = -uy
   let ny = ux
   if (ny > 0) {

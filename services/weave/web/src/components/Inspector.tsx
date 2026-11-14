@@ -135,7 +135,7 @@ function NodeInspector({
       </section>
 
       <p className="inspector-footnote">
-        L4 observation. Connections count TCP opens; events count observed flows.
+        Observed traffic. Connections count TCP opens; events count observed flows.
       </p>
     </>
   )
@@ -280,8 +280,8 @@ function EdgeInspector({
 
       <p className="inspector-footnote">
         {edge.l7
-          ? 'L4 and HTTP. Connections and events are L4 observations; the HTTP block names its latency source and excludes query strings, headers, and bodies.'
-          : 'L4 only. No HTTP client or server span was observed for this edge; HTTPS and Postgres are not L7-visible.'}
+          ? 'HTTP observations name their latency source. Query strings, headers, and bodies are discarded.'
+          : 'No HTTP request was observed for this edge; this is connection-level telemetry.'}
       </p>
     </>
   )

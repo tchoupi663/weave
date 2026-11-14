@@ -7,16 +7,17 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.27-alpine AS build
+FROM golang:1.27-bookworm AS build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/weave ./cmd/weave
+RUN CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/weave ./cmd/weave
 
-FROM alpine:3.22
-RUN apk add --no-cache ca-certificates
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 wget && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /out/weave /app/weave
 COPY --from=web /web/dist /app/web/dist

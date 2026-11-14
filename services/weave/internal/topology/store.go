@@ -60,6 +60,7 @@ type Store struct {
 	observed        uint64
 	observedL7      uint64
 	ingested        uint64
+	recorder        ObservationRecorder
 }
 
 func NewStore(namespace string, window time.Duration) *Store {
@@ -144,6 +145,10 @@ func (s *Store) Ingest(f *flowpb.Flow) bool {
 	bucket := s.bucketFor(mapped.Time)
 	edge.activity[bucket]++
 	s.activity[bucket]++
+
+	if s.recorder != nil {
+		s.recorder.ObserveL4(mapped.Source.Workload, mapped.Target.Workload, mapped.Protocol, mapped.Port, mapped.Connection, mapped.Time)
+	}
 
 	return true
 }

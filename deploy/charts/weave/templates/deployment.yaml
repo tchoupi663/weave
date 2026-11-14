@@ -7,11 +7,9 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 3
+  # One replica owns the SQLite/DuckDB files on a ReadWriteOnce PVC.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+    type: Recreate
   selector:
     matchLabels:
       {{- include "weave.selectorLabels" . | nindent 6 }}
@@ -44,10 +42,34 @@ spec:
               value: {{ .Values.config.window | quote }}
             - name: WEB_DIR
               value: "/app/web/dist"
+            {{- if and .Values.persistence.enabled .Values.config.dataDir }}
+            - name: DATA_DIR
+              value: {{ .Values.config.dataDir | quote }}
+            {{- end }}
+            {{- if .Values.argocd.url }}
+            - name: ARGOCD_URL
+              value: {{ .Values.argocd.url | quote }}
+            - name: ARGOCD_APP
+              value: {{ .Values.argocd.app | quote }}
+            - name: ARGOCD_NAMESPACE
+              value: {{ .Values.argocd.namespace | quote }}
+            {{- if .Values.argocd.tokenSecret }}
+            - name: ARGOCD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.argocd.tokenSecret | quote }}
+                  key: {{ .Values.argocd.tokenKey | default "token" | quote }}
+            {{- end }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.config.dataDir | default "/data" | quote }}
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -64,6 +86,12 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 3
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "weave.fullname" . }}-data
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

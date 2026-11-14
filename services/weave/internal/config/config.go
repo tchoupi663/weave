@@ -28,6 +28,11 @@ type Config struct {
 	WatchNamespace  string
 	Window          time.Duration
 	WebDir          string
+	DataDir         string
+	ArgoCDURL       string
+	ArgoCDToken     string
+	ArgoCDApp       string
+	ArgoCDNamespace string
 }
 
 func Load() (Config, error) {
@@ -36,6 +41,11 @@ func Load() (Config, error) {
 		HubbleRelayAddr: envOr("HUBBLE_RELAY_ADDR", defaultHubbleRelayAddr),
 		WatchNamespace:  envOr("WATCH_NAMESPACE", defaultWatchNamespace),
 		WebDir:          envOr("WEB_DIR", defaultWebDir),
+		DataDir:         envOr("DATA_DIR", ""),
+		ArgoCDURL:       envOr("ARGOCD_URL", ""),
+		ArgoCDToken:     envOr("ARGOCD_TOKEN", ""),
+		ArgoCDApp:       envOr("ARGOCD_APP", "target-app-local"),
+		ArgoCDNamespace: envOr("ARGOCD_NAMESPACE", ""),
 	}
 
 	window, err := parseWindow(envOr("WINDOW", defaultWindow.String()))
@@ -52,6 +62,9 @@ func Load() (Config, error) {
 	}
 	if strings.TrimSpace(cfg.WatchNamespace) == "" {
 		return Config{}, fmt.Errorf("WATCH_NAMESPACE must not be empty")
+	}
+	if cfg.ArgoCDNamespace == "" {
+		cfg.ArgoCDNamespace = cfg.WatchNamespace
 	}
 	if cfg.Window < minWindow || cfg.Window > maxWindow {
 		return Config{}, fmt.Errorf("WINDOW must be between %s and %s", minWindow, maxWindow)

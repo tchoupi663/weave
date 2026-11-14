@@ -17,7 +17,8 @@ helm upgrade --install chaos-mesh chaos-mesh/chaos-mesh \
 The values use the kind containerd socket, one controller replica, and no
 dashboard. Chaos DNS is installed by the chart but is not used by Weave.
 
-The first incident fixture is an `HTTPChaos` that replaces Catalog
-`GET /api/products` responses with HTTP 500. It must be applied after the
-Target App is running and removed after the run. The fixture is owned by the
-fault harness, not by Weave.
+The first incident fixture is
+`fixtures/catalog-http-500.yaml`: an `HTTPChaos` that replaces Catalog
+`GET /api/products` responses with HTTP 500 for two minutes. It must be applied
+after the 15-minute healthy baseline and removed after the incident window. The
+fixture is owned by the fault harness, not by Weave.

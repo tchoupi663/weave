@@ -11,22 +11,35 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tchoupi663/weave/services/weave/internal/history"
 	"github.com/tchoupi663/weave/services/weave/internal/topology"
 )
 
 type Server struct {
-	store  *topology.Store
-	webDir string
-	log    *slog.Logger
+	store   *topology.Store
+	webDir  string
+	log     *slog.Logger
+	history *history.History
 }
 
 func New(store *topology.Store, webDir string, log *slog.Logger) http.Handler {
-	s := &Server{store: store, webDir: webDir, log: log}
+	return NewWithHistory(store, webDir, nil, log)
+}
+
+func NewWithHistory(store *topology.Store, webDir string, hist *history.History, log *slog.Logger) http.Handler {
+	s := &Server{store: store, webDir: webDir, log: log, history: hist}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/topology", s.topology)
 	mux.HandleFunc("GET /api/stream", s.stream)
 	mux.HandleFunc("POST /api/reset", s.reset)
 	mux.HandleFunc("POST /v1/traces", s.traces)
+	mux.HandleFunc("POST /api/incidents", s.createIncident)
+	mux.HandleFunc("GET /api/incidents", s.listIncidents)
+	mux.HandleFunc("GET /api/incidents/{id}", s.getIncident)
+	mux.HandleFunc("PATCH /api/incidents/{id}", s.patchIncident)
+	mux.HandleFunc("POST /api/incidents/{id}/recompute", s.recomputeIncident)
+	mux.HandleFunc("GET /api/incidents/{id}/timeline", s.incidentTimeline)
+	mux.HandleFunc("GET /api/changes", s.changes)
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("/", s.static)
