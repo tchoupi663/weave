@@ -1,4 +1,5 @@
 id: catalog-http-500
+template: internal_logic_bug
 description: Catalog returns HTTP 500 on the product list route
 fault_duration_seconds: 240
 recovery_seconds: 120

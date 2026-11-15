@@ -1,0 +1,35 @@
+{
+  "root_cause": {
+    "workload": "orders",
+    "failure_mode": "bad_deployment"
+  },
+  "affected": {
+    "edge_id": "workload:weave/gateway-\u003eworkload:weave/orders:8083",
+    "route": "POST /api/orders"
+  },
+  "evidence": [
+    {
+      "source": "kube",
+      "reference": "deployment orders",
+      "observation": "orders deployment shows 0 available replicas with MinimumReplicasUnavailable status"
+    },
+    {
+      "source": "kube",
+      "reference": "pod orders-84dd9d5b5d-mwb9x",
+      "observation": "Pod is Running but not ready with 2 restarts, container ready:false"
+    },
+    {
+      "source": "metrics",
+      "reference": "weave_route_errors",
+      "observation": "6-7 errors per 5s bucket observed on gateway-\u003eorders edge during incident window"
+    },
+    {
+      "source": "kube",
+      "reference": "deployment orders events",
+      "observation": "No specific error events visible for the orders workload"
+    }
+  ],
+  "confidence": 0.9,
+  "summary": "The orders deployment failed to become ready with 0 available replicas, causing all requests from the gateway to fail with 5xx errors during the incident window."
+}
+status=completed tokens=143863 tool_calls=19 denials=0 expansions=0

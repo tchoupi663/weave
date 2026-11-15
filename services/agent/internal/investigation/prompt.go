@@ -25,7 +25,7 @@ Evidence rules:
 
 Return exactly this JSON shape:
 {
-  "root_cause": {"workload": "<lower-case workload name>", "failure_mode": "http_error|latency|dependency_unavailable|bad_deployment|other"},
+  "root_cause": {"workload": "<lower-case workload name>", "failure_mode": "http_error|latency|dependency_unavailable|bad_deployment|resource_saturation|network_fault|other"},
   "affected": {"edge_id": "<observed edge id, optional>", "route": "<METHOD /normalized/path, optional>"},
   "evidence": [{"source": "metrics|logs|kube|source|weave", "reference": "<tool or metric reference>", "observation": "<short observation>"}],
   "confidence": 0.0,

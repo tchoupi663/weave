@@ -1,4 +1,5 @@
 id: auth-login-latency
+template: internal_logic_bug
 description: Auth login route becomes slow
 fault_duration_seconds: 240
 recovery_seconds: 120

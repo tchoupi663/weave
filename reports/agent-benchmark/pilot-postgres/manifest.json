@@ -4,7 +4,7 @@
     "tool_calls": 20,
     "wall_seconds": 600
   },
-  "episodes": 0,
+  "episodes": 1,
   "matrix": {
     "repetitions": 1
   },
@@ -20,6 +20,6 @@
     "sha256": "e27ebc0a0afa23c13df3ca1f1fdf47d7c7b5a1454aa71b22ccc836a9c7f5ad82"
   },
   "run_id": "pilot-postgres",
-  "runs": 0,
-  "status": "running"
+  "runs": 2,
+  "status": "complete"
 }

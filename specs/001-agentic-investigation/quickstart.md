@@ -91,7 +91,8 @@ and whether expansion was needed for the dependency/crash scenarios.
 ./scripts/agent-benchmark.sh --full
 ```
 
-Full matrix = five scenarios × three repetitions × two arms = 30 Agent Runs.
+Full matrix = nine scenarios × three repetitions × two arms = 54 Agent Runs.
+The first taxonomy-coverage run is nine scenarios × one repetition × two arms = 18 Agent Runs.
 It runs continuously and may take roughly 3–4 hours. Run it as a managed
 background job. If interrupted, the partial artifacts remain valid and the
 summary is marked incomplete.

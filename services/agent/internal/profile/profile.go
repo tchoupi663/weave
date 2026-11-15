@@ -23,12 +23,14 @@ type Profile struct {
 	CooldownSeconds         int            `yaml:"cooldown_seconds"`
 	SLARules                string         `yaml:"sla_rules"`
 	ExpectedTopology        string         `yaml:"expected_topology"`
+	Templates               string         `yaml:"templates"`
 	Workloads               []Workload     `yaml:"workloads"`
 	Scenarios               []string       `yaml:"scenarios"`
 	Agents                  map[string]any `yaml:"agents"`
 	SourceRoot              string         `yaml:"source_root,omitempty"`
 	path                    string
 	scenarioCache           map[string]Scenario
+	templateClasses         map[string]bool
 }
 
 type Cluster struct {
@@ -54,6 +56,7 @@ type Workload struct {
 type Scenario struct {
 	ID                   string      `yaml:"id"`
 	Description          string      `yaml:"description"`
+	Template             string      `yaml:"template"`
 	FaultDurationSeconds int         `yaml:"fault_duration_seconds"`
 	RecoverySeconds      int         `yaml:"recovery_seconds"`
 	Injection            Injection   `yaml:"injection"`
@@ -96,10 +99,27 @@ func Load(path string) (*Profile, error) {
 	if err := profile.validate(); err != nil {
 		return nil, err
 	}
+	if err := profile.loadTemplates(); err != nil {
+		return nil, err
+	}
 	return &profile, nil
 }
 
 func (profile *Profile) Path() string { return profile.path }
+
+// TemplatesHash returns the SHA-256 of the fault-class registry.
+func (profile *Profile) TemplatesHash() string {
+	path := profile.Templates
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(profile.path), path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
 
 func (profile *Profile) Hash() string {
 	raw, err := os.ReadFile(profile.path)
@@ -188,6 +208,9 @@ func (profile *Profile) validate() error {
 	if profile.SLARules == "" {
 		return fmt.Errorf("sla_rules is required")
 	}
+	if profile.Templates == "" {
+		return fmt.Errorf("templates is required")
+	}
 	if len(profile.Workloads) == 0 {
 		return fmt.Errorf("at least one workload is required")
 	}
@@ -207,9 +230,51 @@ func (profile *Profile) validate() error {
 	return nil
 }
 
+type templateRegistry struct {
+	Classes []struct {
+		ID     string `yaml:"id"`
+		Status string `yaml:"status"`
+	} `yaml:"classes"`
+}
+
+func (profile *Profile) loadTemplates() error {
+	path := profile.Templates
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(profile.path), path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read templates: %w", err)
+	}
+	var registry templateRegistry
+	if err := yaml.Unmarshal(raw, &registry); err != nil {
+		return fmt.Errorf("parse templates: %w", err)
+	}
+	profile.templateClasses = map[string]bool{}
+	for _, class := range registry.Classes {
+		if class.ID == "" {
+			return fmt.Errorf("template class id is required")
+		}
+		if class.Status != "covered" && class.Status != "coming_soon" {
+			return fmt.Errorf("template class %q: status must be covered or coming_soon", class.ID)
+		}
+		profile.templateClasses[class.ID] = true
+	}
+	if len(profile.templateClasses) == 0 {
+		return fmt.Errorf("templates must declare at least one class")
+	}
+	return nil
+}
+
 func (profile *Profile) validateScenario(scenario Scenario) error {
 	if strings.TrimSpace(scenario.ID) == "" {
 		return fmt.Errorf("scenario id is required")
+	}
+	if strings.TrimSpace(scenario.Template) == "" {
+		return fmt.Errorf("scenario %q: template is required", scenario.ID)
+	}
+	if len(profile.templateClasses) > 0 && !profile.templateClasses[scenario.Template] {
+		return fmt.Errorf("scenario %q: unknown template %q", scenario.ID, scenario.Template)
 	}
 	if scenario.FaultDurationSeconds < 30 || scenario.RecoverySeconds < 0 {
 		return fmt.Errorf("scenario %q: invalid fault/recovery duration", scenario.ID)
@@ -230,9 +295,9 @@ func (profile *Profile) validateScenario(scenario Scenario) error {
 		}
 	}
 	switch scenario.Injection.Mechanism {
-	case "http_chaos":
+	case "http_chaos", "stress_chaos", "network_chaos":
 		if scenario.Injection.Fixture == "" {
-			return fmt.Errorf("scenario %q: fixture is required for http_chaos", scenario.ID)
+			return fmt.Errorf("scenario %q: fixture is required for %s", scenario.ID, scenario.Injection.Mechanism)
 		}
 	case "pod_delete_loop":
 		if scenario.Injection.Target == "" {

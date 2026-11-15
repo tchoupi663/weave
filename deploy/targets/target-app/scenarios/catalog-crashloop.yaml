@@ -1,4 +1,5 @@
 id: catalog-crashloop
+template: deployment_manifest_error
 description: Catalog image crash-loops due to a code error
 fault_duration_seconds: 240
 recovery_seconds: 120

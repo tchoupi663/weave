@@ -1,0 +1,16 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: bench-catalog-cpu-stress
+  namespace: weave
+spec:
+  mode: all
+  selector:
+    namespaces: [weave]
+    labelSelectors:
+      app: catalog
+  stressors:
+    cpu:
+      workers: 2
+      load: 100
+  duration: "4m"

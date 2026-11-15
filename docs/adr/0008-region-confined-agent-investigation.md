@@ -80,11 +80,14 @@ small graph, with an app-agnostic seam for the larger one.
 
 ### Scope and delivery
 
-- The first slice uses five Fault Scenarios: catalog HTTP 500, auth login
-  latency, external payment downtime, Postgres downtime, and a crash-looping
-  catalog image. The last is a benchmark-only build; the normal image and
-  Target App source behavior are unchanged. Scenario ground truth includes the
-  root cause, failure mode, affected route, and expected initial region.
+- The first slice now uses nine Fault Scenarios grouped into four covered
+  service-level fault classes; see ADR-0009. They are catalog HTTP 500, auth
+  login latency, external payment downtime, Postgres downtime, a crash-looping
+  catalog image, orders scaled to zero, payment ImagePullBackOff, catalog CPU
+  stress, and catalog network loss. The crash image is a benchmark-only build;
+  the normal image and Target App source behavior are unchanged. Scenario
+  ground truth includes the root cause, failure mode, affected route, and
+  expected initial region.
 - The first slice has no Agent UI and no persisted Agent Run in Weave. Results
   are committed benchmark artifacts. The browser surface remains the
   Operator's Incident View.

@@ -1,0 +1,36 @@
+version: target-app-v2
+# Service-level fault classes used by the Target App scenarios.
+# A class is covered only when at least one scenario exercises it end to end.
+classes:
+  - id: internal_logic_bug
+    name: Internal logic fault
+    status: covered
+    problem_class: A service's own behavior returns errors or becomes slow at its boundary.
+    scenarios: [catalog-http-500, auth-login-latency]
+  - id: external_dependency_handling
+    name: External dependency handling
+    status: covered
+    problem_class: A database, provider, or downstream service becomes unavailable and the caller does not handle it.
+    scenarios: [external-payment-outage, postgres-outage]
+  - id: deployment_manifest_error
+    name: Deployment manifest error
+    status: covered
+    problem_class: A workload is scaled to zero, points at an unavailable image, or crash-loops after a bad rollout.
+    scenarios: [catalog-crashloop, orders-replicas-zero, payment-image-pull-backoff]
+  - id: resource_infrastructure_fault
+    name: Resource and infrastructure fault
+    status: covered
+    problem_class: CPU saturation or network loss degrades a healthy workload without changing its code or configuration.
+    scenarios: [catalog-cpu-stress, catalog-network-loss]
+  - id: data_contract_mismatch
+    name: Data contract mismatch
+    status: coming_soon
+    problem_class: Services disagree about fields, schemas, or payload shape across a boundary.
+  - id: resource_identity_mismatch
+    name: Resource identity mismatch
+    status: coming_soon
+    problem_class: Labels, selectors, or service identities point at the wrong resource.
+  - id: configuration_mismatch
+    name: Configuration mismatch
+    status: coming_soon
+    problem_class: Environment values, constants, or feature flags are wrong for the running code.

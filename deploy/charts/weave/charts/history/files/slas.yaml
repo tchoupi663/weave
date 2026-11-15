@@ -1,6 +1,6 @@
 # Weave SLA rules for the local Target App.
 # Evaluated by weave-history every DETECTION_INTERVAL seconds over flushed 5s buckets.
-version: target-app-v1
+version: target-app-v2
 rules:
   - id: catalog-products-5xx
     description: Catalog product list availability
@@ -11,6 +11,19 @@ rules:
       path: /api/products
     metric: error_rate_5xx
     threshold: 0.01
+    window_seconds: 60
+    min_requests: 10
+    sustain_evaluations: 2
+    clear_evaluations: 12
+
+  - id: catalog-products-p95
+    description: Catalog product list latency
+    severity: warning
+    scope:
+      kind: edge
+      edge_id: workload:weave/gateway->workload:weave/catalog:8082
+    metric: p95_latency_ms
+    threshold: 40
     window_seconds: 60
     min_requests: 10
     sustain_evaluations: 2

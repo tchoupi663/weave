@@ -1,0 +1,25 @@
+{
+  "caps": {
+    "tokens": 160000,
+    "tool_calls": 20,
+    "wall_seconds": 600
+  },
+  "episodes": 1,
+  "matrix": {
+    "repetitions": 1
+  },
+  "model": {
+    "digest": "7f3251fa6878a78a606bcb3c074283306e5ad2ea411a7774a9dd98a4bc7f2d13",
+    "name": "qwen3.5:4b",
+    "num_ctx": 32768,
+    "temperature": 0,
+    "think": "true"
+  },
+  "profile": {
+    "path": "deploy/targets/target-app/profile.yaml",
+    "sha256": "e27ebc0a0afa23c13df3ca1f1fdf47d7c7b5a1454aa71b22ccc836a9c7f5ad82"
+  },
+  "run_id": "pilot-crashloop",
+  "runs": 2,
+  "status": "complete"
+}

@@ -1,0 +1,17 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: bench-catalog-network-loss
+  namespace: weave
+spec:
+  action: loss
+  mode: all
+  selector:
+    namespaces: [weave]
+    labelSelectors:
+      app: catalog
+  direction: to
+  loss:
+    loss: "50"
+    correlation: "100"
+  duration: "4m"

@@ -1,4 +1,5 @@
 id: external-payment-outage
+template: external_dependency_handling
 description: External Payment Provider pods are unavailable
 fault_duration_seconds: 240
 recovery_seconds: 120

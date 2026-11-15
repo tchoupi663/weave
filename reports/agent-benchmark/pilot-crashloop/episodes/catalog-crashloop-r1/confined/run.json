@@ -1,0 +1,73 @@
+{
+  "run_id": "20261115T184232Z-confined",
+  "incident_id": "2539c3c17daa155d41f3200b",
+  "arm": "confined",
+  "prompt_version": "investigator-v1",
+  "model_name": "qwen3.5:4b",
+  "model_digest": "7f3251fa6878a78a606bcb3c074283306e5ad2ea411a7774a9dd98a4bc7f2d13",
+  "status": "completed",
+  "started_at": "2026-11-15T18:42:32.72538Z",
+  "ended_at": "2026-11-15T18:45:24.34913Z",
+  "duration_ms": 171623,
+  "tokens": {
+    "prompt": 69575,
+    "completion": 3441,
+    "total": 73016
+  },
+  "tool_calls": 20,
+  "tool_payload_bytes": 7015,
+  "search_breadth": {
+    "edges": 7,
+    "nodes": 1,
+    "pods": 3,
+    "routes": 1,
+    "workloads": 3
+  },
+  "expansions": 1,
+  "denials": 0,
+  "caps": {
+    "max_tool_calls": 20,
+    "max_tokens": 160000,
+    "max_wall": 600000000000
+  },
+  "diagnosis": {
+    "root_cause": {
+      "workload": "gateway",
+      "failure_mode": "latency"
+    },
+    "affected": {
+      "edge_id": "workload:weave/frontend-\u003eworkload:weave/gateway:8080",
+      "route": "GET /api/products"
+    },
+    "evidence": [
+      {
+        "source": "metrics",
+        "reference": "weave_edge_errors",
+        "observation": "Edge error rate jumped from 0 to 69% at 18:42:00Z and 80% at 18:42:05Z"
+      },
+      {
+        "source": "metrics",
+        "reference": "weave_route_errors",
+        "observation": "Route /api/products saw 20 then 86 errors in the incident window"
+      },
+      {
+        "source": "metrics",
+        "reference": "downstream edges",
+        "observation": "All gateway-\u003edependency edges show 0 errors, indicating issue is within gateway itself"
+      },
+      {
+        "source": "kube",
+        "reference": "gateway deployment",
+        "observation": "No recent changes to gateway deployment (updated 2 days ago)"
+      },
+      {
+        "source": "logs",
+        "reference": "gateway logs",
+        "observation": "No error logs captured during incident window"
+      }
+    ],
+    "confidence": 0.85,
+    "summary": "Gateway workload is returning 5xx errors to frontend during high load period; downstream dependencies are healthy, indicating internal gateway issue rather than dependency failure."
+  },
+  "transcript": "reports/agent-benchmark/pilot-crashloop/episodes/catalog-crashloop-r1/confined/transcript.jsonl"
+}

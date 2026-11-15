@@ -11,9 +11,10 @@ func TestLoadTargetProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profile.Name != "target-app" || len(profile.Scenarios) != 5 {
+	if profile.Name != "target-app" || len(profile.Scenarios) != 9 {
 		t.Fatalf("profile = %+v", profile)
 	}
+	classes := map[string]bool{}
 	for _, id := range profile.Scenarios {
 		scenario, err := profile.Scenario(id)
 		if err != nil {
@@ -22,6 +23,13 @@ func TestLoadTargetProfile(t *testing.T) {
 		if len(scenario.GroundTruth.RootCauseWorkloads) == 0 || scenario.FaultDurationSeconds < 30 {
 			t.Fatalf("scenario %s incomplete: %+v", id, scenario)
 		}
+		if scenario.Template == "" {
+			t.Fatalf("scenario %s has no template", id)
+		}
+		classes[scenario.Template] = true
+	}
+	if len(classes) != 4 {
+		t.Fatalf("expected 4 covered classes, got %v", classes)
 	}
 	if len(profile.SourceMap()["catalog"]) == 0 {
 		t.Fatalf("catalog source map = %+v", profile.SourceMap())

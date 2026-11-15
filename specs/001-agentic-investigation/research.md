@@ -259,7 +259,7 @@ records the decision, why it was chosen, and what was rejected.
   5. writes one record per Agent Run, episode metadata, fixture hashes, summary
      JSON/Markdown, and environment metadata.
   A pilot mode runs one repetition over three scenarios. The full matrix is
-  five scenarios × three repetitions × two arms.
+  nine scenarios × three repetitions × two arms after the fault-class taxonomy extension.
 - **Rationale**: A single orchestrator keeps fault timing, incident identity,
   arm pairing, and artifacts consistent; the simulator and kubectl are already
   the project's tools.

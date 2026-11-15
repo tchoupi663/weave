@@ -1,0 +1,40 @@
+{
+  "root_cause": {
+    "workload": "gateway",
+    "failure_mode": "latency"
+  },
+  "affected": {
+    "edge_id": "workload:weave/frontend-\u003eworkload:weave/gateway:8080",
+    "route": "GET /api/products"
+  },
+  "evidence": [
+    {
+      "source": "metrics",
+      "reference": "weave_edge_errors",
+      "observation": "Edge error rate jumped from 0 to 69% at 18:42:00Z and 80% at 18:42:05Z"
+    },
+    {
+      "source": "metrics",
+      "reference": "weave_route_errors",
+      "observation": "Route /api/products saw 20 then 86 errors in the incident window"
+    },
+    {
+      "source": "metrics",
+      "reference": "downstream edges",
+      "observation": "All gateway-\u003edependency edges show 0 errors, indicating issue is within gateway itself"
+    },
+    {
+      "source": "kube",
+      "reference": "gateway deployment",
+      "observation": "No recent changes to gateway deployment (updated 2 days ago)"
+    },
+    {
+      "source": "logs",
+      "reference": "gateway logs",
+      "observation": "No error logs captured during incident window"
+    }
+  ],
+  "confidence": 0.85,
+  "summary": "Gateway workload is returning 5xx errors to frontend during high load period; downstream dependencies are healthy, indicating internal gateway issue rather than dependency failure."
+}
+status=completed tokens=73016 tool_calls=20 denials=0 expansions=1

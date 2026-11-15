@@ -19,6 +19,8 @@ spec:
       labels:
         app.kubernetes.io/name: weave-history
         app.kubernetes.io/part-of: weave
+      annotations:
+        checksum/slas: {{ include (print $.Template.BasePath "/configmap-slas.yaml") . | sha256sum }}
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 10

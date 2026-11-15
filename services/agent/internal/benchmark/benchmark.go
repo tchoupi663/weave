@@ -41,6 +41,7 @@ type Benchmark struct {
 
 type episode struct {
 	ScenarioID         string `json:"scenario_id"`
+	Template           string `json:"template,omitempty"`
 	Repetition         int    `json:"repetition"`
 	IncidentID         string `json:"incident_id,omitempty"`
 	DetectionLatencyMS int64  `json:"detection_latency_ms,omitempty"`
@@ -52,6 +53,7 @@ type episode struct {
 
 type runRecord struct {
 	ScenarioID string `json:"scenario_id"`
+	Template   string `json:"template,omitempty"`
 	Repetition int    `json:"repetition"`
 	IncidentID string `json:"incident_id"`
 	Arm        string `json:"arm"`
@@ -154,7 +156,7 @@ func (b *Benchmark) Run(ctx context.Context) error {
 }
 
 func (b *Benchmark) runEpisode(ctx context.Context, scenario profile.Scenario, repetition int) error {
-	ep := episode{ScenarioID: scenario.ID, Repetition: repetition, Status: "failed"}
+	ep := episode{ScenarioID: scenario.ID, Template: scenario.Template, Repetition: repetition, Status: "failed"}
 	defer func() { b.episodes = append(b.episodes, ep) }()
 	if err := b.ensureClean(ctx); err != nil {
 		ep.Notes = err.Error()
@@ -196,7 +198,7 @@ func (b *Benchmark) runEpisode(ctx context.Context, scenario profile.Scenario, r
 		runDir := filepath.Join(b.dir, "episodes", fmt.Sprintf("%s-r%d", scenario.ID, repetition), arm)
 		record, err := b.runArm(ctx, scenario, repetition, inc, arm, runDir, files)
 		if err != nil {
-			record = runRecord{ScenarioID: scenario.ID, Repetition: repetition, IncidentID: inc.ID, Arm: arm, Status: "failed"}
+			record = runRecord{ScenarioID: scenario.ID, Template: scenario.Template, Repetition: repetition, IncidentID: inc.ID, Arm: arm, Status: "failed"}
 		}
 		record.ScenarioID, record.Repetition, record.IncidentID, record.Arm = scenario.ID, repetition, inc.ID, arm
 		b.runs = append(b.runs, record)
@@ -326,7 +328,7 @@ func (b *Benchmark) runArm(ctx context.Context, scenario profile.Scenario, repet
 	}
 	correct, _, _ := score(scenario.GroundTruth, record.Diagnosis)
 	_, routeMatch, modeMatch := score(scenario.GroundTruth, record.Diagnosis)
-	out := runRecord{ScenarioID: scenario.ID, Repetition: repetition, IncidentID: inc.ID, Arm: arm, RunID: record.RunID,
+	out := runRecord{ScenarioID: scenario.ID, Template: scenario.Template, Repetition: repetition, IncidentID: inc.ID, Arm: arm, RunID: record.RunID,
 		Status: record.Status, Correct: correct, RouteMatch: routeMatch, ModeMatch: modeMatch,
 		Tokens: record.Tokens.Total, ToolCalls: record.ToolCalls, Denials: record.Denials, Expansions: record.Expansions}
 	return out, nil
@@ -350,7 +352,7 @@ func normalize(value string) string { return strings.Join(strings.Fields(value),
 
 func (b *Benchmark) inject(ctx context.Context, scenario profile.Scenario) (func(), string, error) {
 	switch scenario.Injection.Mechanism {
-	case "http_chaos":
+	case "http_chaos", "stress_chaos", "network_chaos":
 		if err := b.kubectl(ctx, "apply", "-f", scenario.Injection.Fixture); err != nil {
 			return func() {}, "", err
 		}
@@ -394,11 +396,25 @@ func (b *Benchmark) inject(ctx context.Context, scenario profile.Scenario) (func
 		if err != nil {
 			return func() {}, "", err
 		}
+		replicas, err := b.kubectlOutput(ctx, "get", target, "-o", "jsonpath={.spec.replicas}")
+		if err != nil {
+			return func() {}, "", err
+		}
+		// A rolling update with one replica keeps the old pod serving while the
+		// new pod crash-loops. Remove the old pod first so the bad image is an
+		// actual outage, then let the crash loop be the failure.
+		if err := b.kubectl(ctx, "scale", target, "--replicas=0"); err != nil {
+			return func() {}, "", err
+		}
 		if err := b.kubectl(ctx, "set", "image", target, scenario.Injection.Target+"="+scenario.Injection.Image); err != nil {
+			return func() {}, "", err
+		}
+		if err := b.kubectl(ctx, "scale", target, "--replicas="+strings.TrimSpace(replicas)); err != nil {
 			return func() {}, "", err
 		}
 		return func() {
 			_ = b.kubectl(context.Background(), "set", "image", target, scenario.Injection.Target+"="+original)
+			_ = b.kubectl(context.Background(), "scale", target, "--replicas="+strings.TrimSpace(replicas))
 		}, "image:" + scenario.Injection.Image, nil
 	default:
 		return func() {}, "", fmt.Errorf("unknown injection %q", scenario.Injection.Mechanism)
@@ -515,11 +531,12 @@ func (b *Benchmark) writeManifest(status string) error {
 	digest := envOr("WEAVE_MODEL_DIGEST", "7f3251fa6878a78a606bcb3c074283306e5ad2ea411a7774a9dd98a4bc7f2d13")
 	payload := map[string]any{
 		"run_id": filepath.Base(b.dir), "status": status,
-		"profile":  map[string]any{"path": b.opts.ProfilePath, "sha256": b.profile.Hash()},
-		"model":    map[string]any{"name": model, "digest": digest, "temperature": 0, "num_ctx": 32768, "think": envOr("WEAVE_MODEL_THINK", "true")},
-		"caps":     map[string]any{"tool_calls": b.opts.MaxToolCalls, "tokens": b.opts.MaxTokens, "wall_seconds": int(b.opts.MaxWall.Seconds())},
-		"matrix":   map[string]any{"repetitions": b.opts.Repetitions},
-		"episodes": len(b.episodes), "runs": len(b.runs),
+		"profile":   map[string]any{"path": b.opts.ProfilePath, "sha256": b.profile.Hash()},
+		"templates": map[string]any{"path": b.profile.Templates, "sha256": b.profile.TemplatesHash()},
+		"model":     map[string]any{"name": model, "digest": digest, "temperature": 0, "num_ctx": 32768, "think": envOr("WEAVE_MODEL_THINK", "true")},
+		"caps":      map[string]any{"tool_calls": b.opts.MaxToolCalls, "tokens": b.opts.MaxTokens, "wall_seconds": int(b.opts.MaxWall.Seconds())},
+		"matrix":    map[string]any{"scenarios": len(b.profile.Scenarios), "repetitions": b.opts.Repetitions, "arms": 2, "expected_runs": len(b.profile.Scenarios) * b.opts.Repetitions * 2},
+		"episodes":  len(b.episodes), "runs": len(b.runs),
 	}
 	return writeJSON(filepath.Join(b.dir, "manifest.json"), payload)
 }
@@ -564,15 +581,19 @@ func (b *Benchmark) writeSummary() error {
 	var builder strings.Builder
 	builder.WriteString("# Agent Benchmark\n\n")
 	builder.WriteString("Model: " + envOr("WEAVE_MODEL", "qwen3.5:4b") + "\n\n")
-	builder.WriteString("| scenario | arm | runs | correct | tokens | tool calls | denials | expansions |\n")
-	builder.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	templateByScenario := map[string]string{}
+	for _, run := range b.runs {
+		templateByScenario[run.ScenarioID] = run.Template
+	}
+	builder.WriteString("| scenario | template | arm | runs | correct | tokens | tool calls | denials | expansions |\n")
+	builder.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for scenarioID, arms := range stats {
 		for _, armName := range []string{"confined", "unconfined"} {
 			arm := arms[armName]
 			if arm == nil {
 				continue
 			}
-			builder.WriteString(fmt.Sprintf("| %s | %s | %d | %d | %d | %d | %d | %d |\n", scenarioID, armName, arm.Runs, arm.Correct, arm.TokensTotal, arm.ToolCalls, arm.Denials, arm.Expansions))
+			builder.WriteString(fmt.Sprintf("| %s | %s | %s | %d | %d | %d | %d | %d | %d |\n", scenarioID, templateByScenario[scenarioID], armName, arm.Runs, arm.Correct, arm.TokensTotal, arm.ToolCalls, arm.Denials, arm.Expansions))
 		}
 	}
 	builder.WriteString("\nEpisodes:\n")

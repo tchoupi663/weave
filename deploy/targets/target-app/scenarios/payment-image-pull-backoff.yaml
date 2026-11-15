@@ -1,0 +1,17 @@
+id: payment-image-pull-backoff
+description: Payment deployment points at an image that cannot be pulled
+template: deployment_manifest_error
+fault_duration_seconds: 240
+recovery_seconds: 120
+injection:
+  mechanism: image_swap
+  target: payment
+  image: weave-target-app:does-not-exist
+ground_truth:
+  root_cause_workloads: [payment]
+  failure_mode: bad_deployment
+  affected_route: POST /api/payments
+  affected_edge: workload:weave/gateway->workload:weave/payment:8084
+  expected_initial_region_workloads: [gateway, payment, frontend]
+  expected_region_contains_root_cause: true
+  expected_expansion: false

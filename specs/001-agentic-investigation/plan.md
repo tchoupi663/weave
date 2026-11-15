@@ -53,7 +53,7 @@ one `weave-agent` binary (investigator and MCP server subcommands), one
 `weave-bench` binary, and profile/scenario configuration.
 
 **Performance Goals**: Detection within 30 seconds of the first breaching
-bucket; a complete benchmark matrix (5 scenarios × 3 repetitions × 2 arms)
+bucket; a complete benchmark matrix (9 scenarios × 3 repetitions × 2 arms)
 recorded with raw artifacts; each investigator run bounded by 20 tool calls,
 10 minutes, and a fixed token budget; benchmark wall time approximately 3–4
 hours, run as one managed session.

@@ -345,7 +345,7 @@ func parseDiagnosis(content string) (*Diagnosis, error) {
 		return nil, fmt.Errorf("root_cause.workload is required")
 	}
 	switch diagnosis.RootCause.FailureMode {
-	case "http_error", "latency", "dependency_unavailable", "bad_deployment", "other":
+	case "http_error", "latency", "dependency_unavailable", "bad_deployment", "resource_saturation", "network_fault", "other":
 	default:
 		return nil, fmt.Errorf("root_cause.failure_mode is invalid")
 	}

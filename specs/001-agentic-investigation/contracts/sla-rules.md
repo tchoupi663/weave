@@ -7,7 +7,7 @@ require a history restart in this slice.
 ## Format
 
 ```yaml
-version: target-app-v1
+version: target-app-v2
 rules:
   - id: catalog-products-5xx
     description: Product list availability
@@ -24,14 +24,13 @@ rules:
     clear_evaluations: 12
 
   - id: catalog-products-p95
-    description: Product list latency
+    description: Catalog product list latency
     severity: warning
     scope:
-      kind: route
-      method: GET
-      path: /api/products
+      kind: edge
+      edge_id: workload:weave/gateway->workload:weave/catalog:8082
     metric: p95_latency_ms
-    threshold: 300
+    threshold: 40
     window_seconds: 60
     min_requests: 10
     sustain_evaluations: 2

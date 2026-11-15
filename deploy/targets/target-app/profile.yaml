@@ -1,4 +1,4 @@
-version: target-app-v1
+version: target-app-v2
 name: target-app
 cluster:
   namespace: weave
@@ -16,6 +16,7 @@ grouping_window_seconds: 120
 cooldown_seconds: 300
 sla_rules: deploy/charts/weave/charts/history/files/slas.yaml
 expected_topology: expected-topology.yaml
+templates: templates.yaml
 workloads:
   - name: frontend
     source_roots: [services/app/frontend/src, services/app/frontend/nginx.conf]
@@ -39,6 +40,10 @@ scenarios:
   - external-payment-outage
   - postgres-outage
   - catalog-crashloop
+  - orders-replicas-zero
+  - payment-image-pull-backoff
+  - catalog-cpu-stress
+  - catalog-network-loss
 agents:
   confined:
     scope_limits: {max_expansions: 3, max_added_nodes: 8}

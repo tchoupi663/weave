@@ -249,6 +249,18 @@ _Avoid_: verdict, answer, report.
 A reproducible injected failure with a known ground-truth Root Cause, expected affected Route or Edge, failure mode, and expected Suspect Region, used to evaluate localization and benchmark Agents.
 _Avoid_: accident, chaos test, incident.
 
+**Fault Class**:
+A service-level category of failure that a Fault Scenario can exercise, such as a dependency becoming unavailable or a workload being misdeployed. A Fault Class is a design pattern, not a specific injected fixture, and it does not imply that every mechanism behind the class is simulated.
+_Avoid_: fault type, taxonomy entry, scenario template.
+
+**Fault Coverage**:
+The status of a Fault Class in the Target Profile: `covered` when at least one Fault Scenario exercises it end to end, or `coming_soon` when the class is declared but has no scenario yet. Coverage is per class, not per scenario count.
+_Avoid_: test coverage, completeness.
+
+**Service-level Fault**:
+A fault injected at the boundary or runtime of a deployed service, such as an HTTP error, a dependency outage, a zero replica count, a bad image, CPU stress, or network loss. It is not a code-level defect, a source mutation, or a configuration edit inside the service.
+_Avoid_: application bug, code fault.
+
 **Operator**:
 The human using the Weave incident view.
 _Avoid_: user, agent.

@@ -1,4 +1,5 @@
 id: postgres-outage
+template: external_dependency_handling
 description: Postgres is unavailable while orders calls it
 fault_duration_seconds: 240
 recovery_seconds: 120

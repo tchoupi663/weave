@@ -31,11 +31,11 @@ reports/agent-benchmark/20261115T160000Z/
   "ended_at": "2026-11-15T19:40:00Z",
   "git": {"sha": "...", "branch": "main", "dirty": false},
   "profile": {"path": "deploy/targets/target-app/profile.yaml", "sha256": "..."},
-  "rule_pack": {"version": "target-app-v1", "sha256": "..."},
+  "rule_pack": {"version": "target-app-v2", "sha256": "..."},
   "model": {"name": "qwen3.5:4b", "digest": "7f3251fa6878...", "temperature": 0, "num_ctx": 32768},
   "caps": {"tool_calls": 20, "tokens": 160000, "wall_seconds": 600, "output_tokens": 2000},
   "baseline_minutes": 5,
-  "matrix": {"scenarios": 5, "repetitions": 3, "arms": 2, "expected_runs": 30},
+  "matrix": {"scenarios": 9, "repetitions": 3, "arms": 2, "expected_runs": 54},
   "mcp": [{"server": "kube", "version": "..."}],
   "simulator": {"config": "...", "sha256": "..."},
   "caveats": []
@@ -47,6 +47,7 @@ reports/agent-benchmark/20261115T160000Z/
 ```json
 {
   "scenario_id": "catalog-http-500",
+  "template": "internal_logic_bug",
   "repetition": 1,
   "incident_id": "8a6a69ef4e60b57a1bbbf824",
   "fault_started_at": "...",
@@ -70,6 +71,7 @@ reports/agent-benchmark/20261115T160000Z/
   "run_id": "20261115T161000Z-unconfined",
   "incident_id": "...",
   "scenario_id": "catalog-http-500",
+  "template": "internal_logic_bug",
   "repetition": 1,
   "arm": "unconfined",
   "order": 1,
@@ -122,6 +124,7 @@ still includes tokens, tool calls, and partial search breadth.
   "scenarios": [
     {
       "scenario_id": "catalog-http-500",
+      "template": "internal_logic_bug",
       "arms": {
         "confined": {"runs": 3, "correct": 2, "accuracy": 0.667, "ttrc_ms": {"median": 143000, "min": 90000, "max": 210000}, "tokens": {"median": 19300}, "search_breadth": {"median_nodes": 4}, "expansions": {"median": 0, "total": 1}, "denials": 0},
         "unconfined": {"runs": 3, "correct": 3, "accuracy": 1.0, "ttrc_ms": {"median": 121000, "min": 80000, "max": 170000}, "tokens": {"median": 61200}, "search_breadth": {"median_nodes": 8}, "expansions": {"median": 0, "total": 0}, "denials": 0}
@@ -142,7 +145,8 @@ Human-readable report with:
 
 - method, environment, git SHA, model digest, prompt hash, caps, baseline;
 - matrix status (complete or incomplete with reasons);
-- per-scenario accuracy and median/range time to root cause;
+- per-scenario and per-fault-class accuracy and median/range time to root cause;
+- fault-class coverage (covered versus coming soon) with the class registry hash;
 - token and search-breadth comparison (confined vs unconfined);
 - expansion and denial counts;
 - region recall per scenario, and whether the root cause was outside the
