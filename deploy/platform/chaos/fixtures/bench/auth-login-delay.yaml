@@ -1,0 +1,17 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: HTTPChaos
+metadata:
+  name: bench-auth-login-delay
+  namespace: weave
+spec:
+  mode: all
+  selector:
+    namespaces: [weave]
+    labelSelectors: {app: auth}
+  target: Response
+  port: 8081
+  method: POST
+  path: /api/auth/login
+  delay:
+    latency: "800ms"
+  duration: "4m"

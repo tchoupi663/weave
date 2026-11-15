@@ -1,11 +1,12 @@
 FROM golang:1.27-alpine AS build
+ARG BUILD_TAGS=
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -o /out/auth ./cmd/auth \
-    && CGO_ENABLED=0 go build -trimpath -o /out/catalog ./cmd/catalog \
+    && CGO_ENABLED=0 go build -trimpath ${BUILD_TAGS:+-tags "$BUILD_TAGS"} -o /out/catalog ./cmd/catalog \
     && CGO_ENABLED=0 go build -trimpath -o /out/orders ./cmd/orders \
     && CGO_ENABLED=0 go build -trimpath -o /out/payment ./cmd/payment \
     && CGO_ENABLED=0 go build -trimpath -o /out/external ./cmd/external \

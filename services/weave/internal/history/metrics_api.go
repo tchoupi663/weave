@@ -200,6 +200,20 @@ func (s *Server) incidentAlerts(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"alerts": alerts})
 }
 
+func (s *Server) recordingGaps(w http.ResponseWriter, r *http.Request) {
+	from, to, _, err := parseMetricRange(r)
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	gaps, err := s.hist.Gaps(r.Context(), from, to)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"gaps": gaps})
+}
+
 func parseMetricRange(r *http.Request) (time.Time, time.Time, string, error) {
 	query := r.URL.Query()
 	from, err := time.Parse(time.RFC3339, query.Get("from"))

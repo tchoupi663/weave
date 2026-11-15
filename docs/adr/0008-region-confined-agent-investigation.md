@@ -15,7 +15,7 @@ architecture. The claim only means something if confinement is enforced and
 measured against an unconfined baseline.
 
 The environment supplies a local GPU and Ollama with a tool-capable
-Qwen3.5-9B model, no hosted model is required, and no MCP server exists yet.
+Qwen3.5-4B model, no hosted model is required, and no MCP server exists yet.
 The Target App is the current small fixture; a larger, realistic app and a
 more realistic traffic simulation are a second slice. The first slice must
 therefore prove the confinement mechanism and the measurement protocol on a
@@ -26,7 +26,7 @@ small graph, with an app-agnostic seam for the larger one.
 ### Agent and tool surface
 
 - The reference Agent is a local **investigator** process: an MCP client and a
-  local-model client. The model is pinned (`qwen:latest`, Qwen3.5-9B Q4_K_M)
+  local-model client. The model is pinned (`qwen3.5:4b`, Qwen3.5-4B)
   with temperature 0 and fixed turn/token/time caps. The model digest, prompt
   hash, and caps are recorded per run. Any MCP-capable agent can replace the
   reference agent without changing the tool contract.

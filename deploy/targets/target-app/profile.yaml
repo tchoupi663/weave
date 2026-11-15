@@ -1,0 +1,45 @@
+version: target-app-v1
+name: target-app
+cluster:
+  namespace: weave
+  weave_namespace: weave-system
+  argo_application: target-app-local
+  read_only_role: weave-mcp-reader
+  read_only_kubeconfig: "" # generated per run; never committed
+traffic:
+  driver: simulator
+  config: services/simulator/testdata/agent-benchmark.yaml
+  reset_target_app: true
+  concurrency: 50
+evidence_baseline_minutes: 5
+grouping_window_seconds: 120
+cooldown_seconds: 300
+sla_rules: deploy/charts/weave/charts/history/files/slas.yaml
+expected_topology: expected-topology.yaml
+workloads:
+  - name: frontend
+    source_roots: [services/app/frontend/src, services/app/frontend/nginx.conf]
+  - name: gateway
+    source_roots: [services/app/cmd/gateway, services/app/internal/gatewaysvc, services/app/internal/httpx]
+  - name: auth
+    source_roots: [services/app/cmd/auth, services/app/internal/authsvc]
+  - name: catalog
+    source_roots: [services/app/cmd/catalog, services/app/internal/catalogsvc]
+  - name: orders
+    source_roots: [services/app/cmd/orders, services/app/internal/orderssvc]
+  - name: payment
+    source_roots: [services/app/cmd/payment, services/app/internal/paymentsvc]
+  - name: external
+    source_roots: [services/app/cmd/external, services/app/internal/externalsvc]
+  - name: postgres
+    source_roots: []
+scenarios:
+  - catalog-http-500
+  - auth-login-latency
+  - external-payment-outage
+  - postgres-outage
+  - catalog-crashloop
+agents:
+  confined:
+    scope_limits: {max_expansions: 3, max_added_nodes: 8}
+  unconfined: {}

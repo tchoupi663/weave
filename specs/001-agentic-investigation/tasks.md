@@ -94,30 +94,30 @@ description: "Task list for agentic investigation slice"
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Write scope-state tests in `services/agent/internal/scope/scope_test.go`: load/save, validation, frontier calculation, atomic write under lock, immutable initial set, time-context validation.
-- [ ] T027 [P] [US2] Write expansion tests in `services/agent/internal/scope/scope_test.go`: valid directions, non-frontier node refused, rationale required, max expansions and added nodes enforced, no partial expansion.
+- [x] T026 [P] [US2] Write scope-state tests in `services/agent/internal/scope/scope_test.go`: load/save, validation, frontier calculation, atomic write under lock, immutable initial set, time-context validation.
+- [x] T027 [P] [US2] Write expansion tests in `services/agent/internal/scope/scope_test.go`: valid directions, non-frontier node refused, rationale required, max expansions and added nodes enforced, no partial expansion.
 - [ ] T028 [P] [US2] Write scope-enforcement contract tests in `services/agent/internal/mcpserver/enforce_test.go` for all five tool namespaces: in-scope success, out-of-scope `scope_denied`, no hidden name leak.
 - [ ] T029 [P] [US2] Write MCP server tool tests in `services/agent/internal/tools/*/tools_test.go` using fake kubectl output, `httptest` Weave APIs, and temporary source roots.
-- [ ] T030 [P] [US2] Write Ollama model client tests in `services/agent/internal/model/ollama_test.go`: tool-call parsing, token accounting, non-streaming response handling, malformed responses.
-- [ ] T031 [P] [US2] Write investigator-loop tests in `services/agent/internal/investigation/loop_test.go` with a fake model and fake MCP client: tool execution, caps, denial transcript, diagnosis parse, one repair retry, cap failure.
-- [ ] T032 [P] [US2] Write region payload tests in `services/agent/internal/investigation/region_test.go`: suspect region payload, empty region seeded from trigger, downsampled timeline, frontier markers, no out-of-scope entities.
+- [x] T030 [P] [US2] Write Ollama model client tests in `services/agent/internal/model/ollama_test.go`: tool-call parsing, token accounting, non-streaming response handling, malformed responses.
+- [x] T031 [P] [US2] Write investigator-loop tests in `services/agent/internal/investigation/loop_test.go` with a fake model and fake MCP client: tool execution, caps, denial transcript, diagnosis parse, one repair retry, cap failure.
+- [x] T032 [P] [US2] Write region payload tests in `services/agent/internal/investigation/region_test.go`: suspect region payload, empty region seeded from trigger, downsampled timeline, frontier markers, no out-of-scope entities.
 
 ### Implementation for User Story 2
 
-- [ ] T033 [US2] Implement `services/agent/internal/scope/scope.go` and `frontier.go`: JSON state, validation, load/save with lock and atomic rename, frontier computation, expansion, limits, and time context.
+- [x] T033 [US2] Implement `services/agent/internal/scope/scope.go` and `frontier.go`: JSON state, validation, load/save with lock and atomic rename, frontier computation, expansion, limits, and time context.
 - [ ] T034 [US2] Implement `services/agent/internal/mcpserver/server.go`: stdio MCP server helper, scope-aware tool registration, structured `scope_denied` errors, and request logging metadata.
-- [ ] T035 [P] [US2] Implement the kube server `services/agent/internal/tools/kube/`: read-only `kubectl` runner, workload-to-pod filtering, events, describe, and in-scope enforcement.
-- [ ] T036 [P] [US2] Implement the metrics server `services/agent/internal/tools/metrics/`: Weave metrics API client, metric discovery, instant/range queries, labels, and in-scope edge/route filtering.
-- [ ] T037 [P] [US2] Implement the logs server `services/agent/internal/tools/logs/`: workload/pod lookup, `previous` container support, since/until/tail/filter, truncation reporting, and in-scope enforcement.
-- [ ] T038 [P] [US2] Implement the source server `services/agent/internal/tools/source/`: directory listing, file read with size cap, scoped search, and path validation against allowed source roots.
-- [ ] T039 [P] [US2] Implement the weave server `services/agent/internal/tools/weave/`: incident metadata without evidence, in-scope topology, changes, gaps, and `expand_scope` using the shared scope state.
-- [ ] T040 [US2] Implement `services/agent/internal/model/ollama.go`: `/api/chat` client, tool definitions, message loop input, token counts, timeouts, and error classification.
-- [ ] T041 [US2] Implement `services/agent/internal/mcpclient/client.go`: initialize five stdio servers, list tools, call tools, record denials, and close cleanly.
-- [ ] T042 [US2] Implement `services/agent/internal/investigation/region.go`, `prompt.go`, and `loop.go`: compact region payload, system/user prompts for confined and unconfined arms, tool-call loop, caps, transcripts, and Diagnosis parsing with one repair retry.
-- [ ] T043 [US2] Implement `services/agent/cmd/weave-agent/main.go`: subcommands `investigator`, `mcp kube|metrics|logs|source|weave`, and configuration from `services/agent/internal/config`.
-- [ ] T044 [US2] Add unconfined-run support in `services/agent/internal/investigation/loop.go` and `services/agent/internal/mcpclient/client.go`: no scope file, full tool data, same tools and caps; assert the mode in the run record.
+- [x] T035 [P] [US2] Implement the kube server `services/agent/internal/tools/kube/`: read-only `kubectl` runner, workload-to-pod filtering, events, describe, and in-scope enforcement.
+- [x] T036 [P] [US2] Implement the metrics server `services/agent/internal/tools/metrics/`: Weave metrics API client, metric discovery, instant/range queries, labels, and in-scope edge/route filtering.
+- [x] T037 [P] [US2] Implement the logs server `services/agent/internal/tools/logs/`: workload/pod lookup, `previous` container support, since/until/tail/filter, truncation reporting, and in-scope enforcement.
+- [x] T038 [P] [US2] Implement the source server `services/agent/internal/tools/source/`: directory listing, file read with size cap, scoped search, and path validation against allowed source roots.
+- [x] T039 [P] [US2] Implement the weave server `services/agent/internal/tools/weave/`: incident metadata without evidence, in-scope topology, changes, gaps, and `expand_scope` using the shared scope state.
+- [x] T040 [US2] Implement `services/agent/internal/model/ollama.go`: `/api/chat` client, tool definitions, message loop input, token counts, timeouts, and error classification.
+- [x] T041 [US2] Implement `services/agent/internal/mcpclient/client.go`: initialize five stdio servers, list tools, call tools, record denials, and close cleanly.
+- [x] T042 [US2] Implement `services/agent/internal/investigation/region.go`, `prompt.go`, and `loop.go`: compact region payload, system/user prompts for confined and unconfined arms, tool-call loop, caps, transcripts, and Diagnosis parsing with one repair retry.
+- [x] T043 [US2] Implement `services/agent/cmd/weave-agent/main.go`: subcommands `investigator`, `mcp kube|metrics|logs|source|weave`, and configuration from `services/agent/internal/config`.
+- [x] T044 [US2] Add unconfined-run support in `services/agent/internal/investigation/loop.go` and `services/agent/internal/mcpclient/client.go`: no scope file, full tool data, same tools and caps; assert the mode in the run record.
 - [ ] T045 [US2] Implement `scripts/agent-benchmark.sh --scope-smoke` support and a no-model MCP smoke check: in-scope call succeeds, out-of-scope call denied, one expansion recorded, one invalid expansion refused.
-- [ ] T046 [US2] Add `services/agent/README.md` documenting the five MCP servers, scope semantics, and how to point another MCP-capable agent at them.
+- [x] T046 [US2] Add `services/agent/README.md` documenting the five MCP servers, scope semantics, and how to point another MCP-capable agent at them.
 
 **Checkpoint**: US2 is demonstrable with a manual incident and a fixture scope, independent of detection and benchmark.
 
@@ -131,7 +131,7 @@ description: "Task list for agentic investigation slice"
 
 ### Tests for User Story 3
 
-- [ ] T047 [P] [US3] Write target-profile tests in `services/agent/internal/profile/profile_test.go`: valid profile, missing required field, unknown workload, invalid baseline, bad source root, missing scenario file.
+- [x] T047 [P] [US3] Write target-profile tests in `services/agent/internal/profile/profile_test.go`: valid profile, missing required field, unknown workload, invalid baseline, bad source root, missing scenario file.
 - [ ] T048 [P] [US3] Write scenario tests in `services/agent/internal/profile/scenario_test.go`: valid fixture, unknown mechanism, ground-truth workload not in profile, covering SLA rule present, fixture hash stability.
 - [ ] T049 [P] [US3] Write scoring tests in `services/agent/internal/benchmark/scoring_test.go`: exact workload match, route/edge match, failure-mode match, malformed diagnosis, failed-cap run, region recall.
 - [ ] T050 [P] [US3] Write artifact tests in `services/agent/internal/benchmark/artifacts_test.go`: run record schema, runs.jsonl consistency, summary medians/ranges, incomplete matrix reporting, no secrets in records.
@@ -139,16 +139,16 @@ description: "Task list for agentic investigation slice"
 
 ### Implementation for User Story 3
 
-- [ ] T052 [US3] Implement `services/agent/internal/profile`: profile and scenario structs, YAML loading, validation, hashing, and source-root checks.
-- [ ] T053 [US3] Add `deploy/targets/target-app/profile.yaml` and `deploy/targets/target-app/scenarios/*.yaml` for all five scenarios with ground truth, injection mechanisms, durations, and expected region membership.
+- [x] T052 [US3] Implement `services/agent/internal/profile`: profile and scenario structs, YAML loading, validation, hashing, and source-root checks.
+- [x] T053 [US3] Add `deploy/targets/target-app/profile.yaml` and `deploy/targets/target-app/scenarios/*.yaml` for all five scenarios with ground truth, injection mechanisms, durations, and expected region membership.
 - [ ] T054 [US3] Add Chaos fixtures `deploy/platform/chaos/fixtures/catalog-http-500.yaml` and `auth-login-delay.yaml` with the benchmark durations; validate both against Chaos Mesh in the cluster.
-- [ ] T055 [US3] Add `deploy/platform/mcp/readonly-rbac.yaml` and kubeconfig generation in the harness: ServiceAccount/Role/RoleBinding in `weave`, token minting, temporary kubeconfig under the run directory, cleanup.
+- [x] T055 [US3] Add `deploy/platform/mcp/readonly-rbac.yaml` and kubeconfig generation in the harness: ServiceAccount/Role/RoleBinding in `weave`, token minting, temporary kubeconfig under the run directory, cleanup.
 - [ ] T056 [US3] Add the crash build: `services/app/Dockerfile` `BUILD_TAGS`, `services/app/cmd/catalog/crashy.go` with `//go:build crashy`, image build/load instructions, and a test that normal catalog startup is unchanged.
-- [ ] T057 [US3] Add `services/simulator/testdata/agent-benchmark.yaml` with the traffic configuration used by the benchmark (concurrency and duration overridable by the harness).
-- [ ] T058 [US3] Implement benchmark fault injectors `services/agent/internal/benchmark/inject.go`: HTTPChaos apply/delete, pod-delete loops for external/postgres, image swap and restore; record fixture hashes and revert evidence.
-- [ ] T059 [US3] Implement benchmark episode/matrix orchestration `services/agent/internal/benchmark/matrix.go`: preflight, warm-up, fault injection, incident polling, arm-order balancing, paired runs, cleanup, spacing/baseline checks, and pilot/full modes.
+- [x] T057 [US3] Add `services/simulator/testdata/agent-benchmark.yaml` with the traffic configuration used by the benchmark (concurrency and duration overridable by the harness).
+- [x] T058 [US3] Implement benchmark fault injectors `services/agent/internal/benchmark/inject.go`: HTTPChaos apply/delete, pod-delete loops for external/postgres, image swap and restore; record fixture hashes and revert evidence.
+- [x] T059 [US3] Implement benchmark episode/matrix orchestration `services/agent/internal/benchmark/matrix.go`: preflight, warm-up, fault injection, incident polling, arm-order balancing, paired runs, cleanup, spacing/baseline checks, and pilot/full modes.
 - [ ] T060 [US3] Implement benchmark scoring and artifacts `services/agent/internal/benchmark/score.go` and `artifacts.go`: diagnosis parsing, ground-truth scoring, region recall, search-breadth derivation, manifest/runs.jsonl/summary JSON and Markdown with environment metadata.
-- [ ] T061 [US3] Implement `services/agent/cmd/weave-bench/main.go` and `scripts/agent-benchmark.sh` options `--scope-smoke`, `--pilot`, `--full`, `--weave-url`, `--keep-faults`, and background-safe logging.
+- [x] T061 [US3] Implement `services/agent/cmd/weave-bench/main.go` and `scripts/agent-benchmark.sh` options `--scope-smoke`, `--pilot`, `--full`, `--weave-url`, `--keep-faults`, and background-safe logging.
 - [ ] T062 [US3] Run the pilot (one repetition over three scenarios) end to end from `services/agent/cmd/weave-bench/main.go`, fix fixture/detection/harness defects, and record the pilot artifacts under `reports/agent-benchmark/`.
 - [ ] T063 [US3] Run the full matrix as a background job, confirm 30 runs or report the matrix incomplete, and write `docs/agent-benchmark.md` from the recorded result.
 - [ ] T064 [US3] Add a healthy negative-control episode to the harness: no fault for the profile baseline, assert zero new incidents, and record it in the report.

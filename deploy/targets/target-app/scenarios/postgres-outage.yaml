@@ -1,0 +1,16 @@
+id: postgres-outage
+description: Postgres is unavailable while orders calls it
+fault_duration_seconds: 240
+recovery_seconds: 120
+injection:
+  mechanism: pod_delete_loop
+  target: postgres
+  delete_interval_seconds: 20
+ground_truth:
+  root_cause_workloads: [postgres]
+  failure_mode: dependency_unavailable
+  affected_route: POST /api/orders
+  affected_edge: workload:weave/orders->workload:weave/postgres:5432
+  expected_initial_region_workloads: [gateway, orders, frontend]
+  expected_region_contains_root_cause: false
+  expected_expansion: true

@@ -31,6 +31,7 @@ func New(hist *History, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /api/incidents/{id}/alerts", s.incidentAlerts)
 	mux.HandleFunc("GET /api/metrics/edges", s.metricsEdges)
 	mux.HandleFunc("GET /api/metrics/routes", s.metricsRoutes)
+	mux.HandleFunc("GET /api/gaps", s.recordingGaps)
 	mux.HandleFunc("POST /internal/v1/observations", s.observations)
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /api/health", s.health)

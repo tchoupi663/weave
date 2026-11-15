@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: weave-mcp-reader
+  namespace: weave
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: weave-mcp-reader
+  namespace: weave
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events", "services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "replicasets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: weave-mcp-reader
+  namespace: weave
+subjects:
+  - kind: ServiceAccount
+    name: weave-mcp-reader
+    namespace: weave
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: weave-mcp-reader

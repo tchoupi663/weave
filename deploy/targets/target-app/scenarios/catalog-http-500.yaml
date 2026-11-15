@@ -1,0 +1,15 @@
+id: catalog-http-500
+description: Catalog returns HTTP 500 on the product list route
+fault_duration_seconds: 240
+recovery_seconds: 120
+injection:
+  mechanism: http_chaos
+  fixture: deploy/platform/chaos/fixtures/bench/catalog-http-500.yaml
+ground_truth:
+  root_cause_workloads: [catalog]
+  failure_mode: http_error
+  affected_route: GET /api/products
+  affected_edge: workload:weave/gateway->workload:weave/catalog:8082
+  expected_initial_region_workloads: [catalog, gateway, frontend]
+  expected_region_contains_root_cause: true
+  expected_expansion: false

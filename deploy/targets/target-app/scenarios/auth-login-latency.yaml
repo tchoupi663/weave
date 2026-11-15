@@ -1,0 +1,15 @@
+id: auth-login-latency
+description: Auth login route becomes slow
+fault_duration_seconds: 240
+recovery_seconds: 120
+injection:
+  mechanism: http_chaos
+  fixture: deploy/platform/chaos/fixtures/bench/auth-login-delay.yaml
+ground_truth:
+  root_cause_workloads: [auth]
+  failure_mode: latency
+  affected_route: POST /api/auth/login
+  affected_edge: workload:weave/gateway->workload:weave/auth:8081
+  expected_initial_region_workloads: [auth, gateway, frontend]
+  expected_region_contains_root_cause: true
+  expected_expansion: false

@@ -74,6 +74,7 @@ func (e *Edge) Handler() http.Handler {
 	mux.Handle("GET /api/incidents/{id}/alerts", history)
 	mux.Handle("GET /api/metrics/edges", history)
 	mux.Handle("GET /api/metrics/routes", history)
+	mux.Handle("GET /api/gaps", history)
 
 	mux.Handle("GET /api/changes", inventory)
 

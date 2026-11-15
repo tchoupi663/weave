@@ -136,9 +136,9 @@ records the decision, why it was chosen, and what was rejected.
 
 ## 9. Local model and agent loop
 
-- **Decision**: Model `qwen:latest` (Qwen3.5-9B Q4_K_M, digest
-  `1602f1a9d60c`), temperature 0, fixed seed where Ollama honors it,
-  `num_ctx: 32768`, and caps: 20 tool calls, 10 minutes wall time, 80k total
+- **Decision**: Model `qwen3.5:4b` (Qwen3.5-4B, digest
+  `7f3251fa6878`), temperature 0, fixed seed where Ollama honors it,
+  `num_ctx: 32768`, and caps: 20 tool calls, 10 minutes wall time, 160k total
   tokens, 2k output tokens per response. The investigator sends OpenAI-style
   tool definitions via Ollama `/api/chat`, executes MCP `tools/call`, appends
   results, and stops on a JSON Diagnosis or a cap. A probe confirmed tool calls
@@ -185,7 +185,7 @@ records the decision, why it was chosen, and what was rejected.
   scope entity set to the full observed edge set; hidden neighbours are never
   named before expansion.
 - **Rationale**: Keeps confinement honest and the token comparison meaningful;
-  the full timeline would swamp a 9B context.
+  the full timeline would swamp a 4B context.
 - **Alternatives**: Raw evidence JSON (rejected: too large and noisy);
   graph-only payload (rejected: agent would need many metric calls to start).
 
@@ -292,7 +292,7 @@ records the decision, why it was chosen, and what was rejected.
 
 - Fixture validation is a required task before the recorded matrix; the pilot
   proves detection and region for each scenario.
-- The local 9B model may produce weak or malformed diagnoses. The benchmark
+- The local 4B model may produce weak or malformed diagnoses. The benchmark
   records that honestly; the plan does not promise treatment accuracy wins.
 - Scope enforcement tests must cover all five servers, not just `weave`.
 - The read-only kubeconfig token is short-lived and generated per run; it must
