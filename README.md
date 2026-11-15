@@ -1,4 +1,23 @@
-# Weave
+<p align="center">
+   <img src="docs/images/weave-banner.png" alt="Weave" width="720">
+</p>
+
+<div align="center">
+    <h1>🧵 Weave</h1>
+    <h3><em>Observe the graph. Replay the incident. Find the suspect region.</em></h3>
+    <p>
+        <img src="docs/images/weave-icon.png" alt="Weave: observed topology across time" width="160">
+    </p>
+</div>
+
+<p align="center">
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+    <img src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" alt="Go 1.26">
+    <img src="https://img.shields.io/badge/Kubernetes-kind-326CE5?logo=kubernetes&logoColor=white" alt="kind">
+    <img src="https://img.shields.io/badge/eBPF-Cilium%20%2B%20Beyla-F96854" alt="eBPF">
+    <img src="https://img.shields.io/badge/storage-DuckDB%20%2B%20SQLite-FFF000?logo=sqlite&logoColor=black" alt="DuckDB and SQLite">
+    <img src="https://img.shields.io/badge/process-Spec--Driven%20Development-2ea44f" alt="Spec-Driven Development">
+</p>
 
 Weave is an incident-replay topology app for a Kubernetes application. It
 constructs an observed workload graph from Cilium Hubble L4 flows and Grafana
@@ -8,6 +27,15 @@ bounded suspect region.
 
 Weave is not an alerting system and does not claim a root cause. It is an
 operator instrument: the graph and the evidence are the product.
+
+## Choose your path
+
+| What you need | Start at | Outcome |
+| --- | --- | --- |
+| See Weave running | [Run Weave](#run-weave) | Four services in `weave-system`, UI on `:8090` |
+| Reproduce an incident | [Incident replay acceptance](#incident-replay-acceptance) | 20-minute replay with a verified suspect region |
+| Change Weave | [Developing with Spec Kit](#developing-with-spec-kit) | A spec carried through plan, tasks, and implementation |
+| Understand the design | [Docs](#docs) | ADRs, contracts, glossary |
 
 ## What is here
 
@@ -162,6 +190,47 @@ instrument, not history.
 ![Weave incident workspace with the pre-incident baseline and scrub timeline](docs/images/weave-incident-workspace.png)
 
 ![Expanded flow heatmap](docs/images/weave-flow.png)
+
+## Developing with Spec Kit
+
+Weave uses [GitHub Spec Kit](https://github.com/github/spec-kit) for
+Spec-Driven Development. The toolkit is installed in this repository under
+`.dsh/skills/` (nine `/speckit-*` skills) and `.specify/` (templates, scripts,
+constitution).
+
+The skills are invoked in the agent chat, not the shell, one at a time, and you
+review each artifact before continuing:
+
+```text
+/speckit-constitution   Establish or update project principles
+/speckit-specify        Turn a feature description into a specification
+/speckit-clarify        Ask targeted questions before planning (optional)
+/speckit-plan           Produce the implementation plan
+/speckit-tasks          Generate dependency-ordered tasks
+/speckit-analyze        Check spec, plan, and tasks for consistency (optional)
+/speckit-implement      Execute the tasks
+/speckit-converge       Find unbuilt work and append it to the tasks
+```
+
+Repeat `implement` and `converge` until convergence reports `Converged`.
+
+`.specify/memory/constitution.md` is the project's ground rules. Weave has
+non-obvious rules that a plan can silently violate, so keep them in the
+constitution:
+
+- Nodes and edges exist only because traffic was observed. Declared
+  architecture never creates an observed edge.
+- L4 connections/events and L7 requests are never summed.
+- `latency_source` is `client`, `server`, or `mixed`, and is exposed per edge.
+- A recording gap is missing data, not zero traffic.
+- The output is a suspect region, never a single root cause.
+
+Reinstalling or upgrading the toolkit:
+
+```bash
+uv tool install specify-cli
+specify self check
+```
 
 ## Incident replay acceptance
 
