@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: weave-slas
+  labels:
+    app.kubernetes.io/name: weave-history
+    app.kubernetes.io/part-of: weave
+data:
+  slas.yaml: |
+{{ .Files.Get "files/slas.yaml" | indent 4 }}

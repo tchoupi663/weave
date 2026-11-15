@@ -13,9 +13,31 @@ CREATE TABLE IF NOT EXISTS incidents (
   scope TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'open',
   notes TEXT NOT NULL DEFAULT '',
-  evidence_json TEXT NOT NULL DEFAULT '{}'
+  evidence_json TEXT NOT NULL DEFAULT '{}',
+  origin TEXT NOT NULL DEFAULT 'manual',
+  trigger_json TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS incidents_created_at ON incidents(created_at);
+
+CREATE TABLE IF NOT EXISTS alerts (
+  id TEXT PRIMARY KEY,
+  incident_id TEXT,
+  rule_id TEXT NOT NULL,
+  rule_version TEXT NOT NULL DEFAULT '',
+  scope_kind TEXT NOT NULL,
+  edge_id TEXT NOT NULL DEFAULT '',
+  method TEXT NOT NULL DEFAULT '',
+  path TEXT NOT NULL DEFAULT '',
+  metric TEXT NOT NULL,
+  observed DOUBLE NOT NULL,
+  threshold DOUBLE NOT NULL,
+  breach_bucket TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  grouped_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS alerts_incident_id ON alerts(incident_id);
+CREATE INDEX IF NOT EXISTS alerts_created_at ON alerts(created_at);
+CREATE INDEX IF NOT EXISTS alerts_rule_id ON alerts(rule_id, created_at);
 
 CREATE TABLE IF NOT EXISTS recording_gaps (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

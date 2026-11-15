@@ -41,6 +41,16 @@ spec:
               value: "/data"
             - name: FLUSH_GRACE
               value: {{ .Values.config.flushGrace | quote }}
+            - name: SLA_RULES_FILE
+              value: {{ default "/etc/weave/slas.yaml" .Values.config.slaRulesFile | quote }}
+            - name: DETECTION_INTERVAL
+              value: {{ default "5s" .Values.config.detectionInterval | quote }}
+            - name: BASELINE_MINUTES
+              value: {{ default "15" .Values.config.baselineMinutes | quote }}
+            - name: GROUPING_WINDOW
+              value: {{ default "2m" .Values.config.groupingWindow | quote }}
+            - name: COOLDOWN
+              value: {{ default "5m" .Values.config.cooldown | quote }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
@@ -48,6 +58,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: slas
+              mountPath: /etc/weave
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /health
@@ -68,3 +81,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.name }}
+        - name: slas
+          configMap:
+            name: weave-slas

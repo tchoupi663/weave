@@ -156,7 +156,7 @@ func (h *History) computeEvidence(ctx context.Context, incident *Incident) (Evid
 		Window:           window,
 		Baseline:         baseline,
 		Thresholds: EvidenceThresholds{
-			BaselineMinutes:   int(baselineDuration / time.Minute),
+			BaselineMinutes:   int(incident.WindowStart.Sub(incident.BaselineStart) / time.Minute),
 			ErrorMultiplier:   2,
 			ErrorDelta:        0.05,
 			LatencyMultiplier: 2,

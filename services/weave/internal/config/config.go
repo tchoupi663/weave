@@ -23,10 +23,18 @@ const (
 	defaultFeedInterval    = time.Second
 	defaultFeedBatch       = 500
 	defaultHealthTimeout   = time.Second
+	defaultDetectionEvery  = 5 * time.Second
+	defaultBaselineMinutes = 15
+	defaultGroupingWindow  = 2 * time.Minute
+	defaultCooldown        = 5 * time.Minute
 	minWindow              = 30 * time.Second
 	maxWindow              = time.Hour
 	windowBucketCount      = 60
 	minimumBucketDuration  = time.Second
+	minDetectionInterval   = time.Second
+	maxDetectionInterval   = time.Minute
+	minBaselineMinutes     = 1
+	maxBaselineMinutes     = 120
 )
 
 // Live is the configuration of weave-live.
@@ -70,6 +78,11 @@ type History struct {
 	WatchNamespace string
 	DataDir        string
 	FlushGrace     time.Duration
+	SLAFile        string
+	DetectionEvery time.Duration
+	Baseline       time.Duration
+	GroupingWindow time.Duration
+	Cooldown       time.Duration
 }
 
 // LoadHistory reads the weave-history configuration.
@@ -78,11 +91,44 @@ func LoadHistory() (History, error) {
 	if err != nil {
 		return History{}, fmt.Errorf("FLUSH_GRACE: %w", err)
 	}
+	detectionEvery, err := time.ParseDuration(envOr("DETECTION_INTERVAL", defaultDetectionEvery.String()))
+	if err != nil {
+		return History{}, fmt.Errorf("DETECTION_INTERVAL: %w", err)
+	}
+	if detectionEvery < minDetectionInterval || detectionEvery > maxDetectionInterval {
+		return History{}, fmt.Errorf("DETECTION_INTERVAL must be between %s and %s", minDetectionInterval, maxDetectionInterval)
+	}
+	baselineMinutes, err := parseInteger(envOr("BASELINE_MINUTES", fmt.Sprintf("%d", defaultBaselineMinutes)))
+	if err != nil {
+		return History{}, fmt.Errorf("BASELINE_MINUTES: %w", err)
+	}
+	if baselineMinutes < minBaselineMinutes || baselineMinutes > maxBaselineMinutes {
+		return History{}, fmt.Errorf("BASELINE_MINUTES must be between %d and %d", minBaselineMinutes, maxBaselineMinutes)
+	}
+	grouping, err := time.ParseDuration(envOr("GROUPING_WINDOW", defaultGroupingWindow.String()))
+	if err != nil {
+		return History{}, fmt.Errorf("GROUPING_WINDOW: %w", err)
+	}
+	cooldown, err := time.ParseDuration(envOr("COOLDOWN", defaultCooldown.String()))
+	if err != nil {
+		return History{}, fmt.Errorf("COOLDOWN: %w", err)
+	}
+	if grouping <= 0 {
+		return History{}, fmt.Errorf("GROUPING_WINDOW must be positive")
+	}
+	if cooldown < 0 {
+		return History{}, fmt.Errorf("COOLDOWN must not be negative")
+	}
 	cfg := History{
 		ListenAddr:     envOr("LISTEN_ADDR", defaultListenAddr),
 		WatchNamespace: envOr("WATCH_NAMESPACE", defaultWatchNamespace),
 		DataDir:        envOr("DATA_DIR", defaultDataDir),
 		FlushGrace:     grace,
+		SLAFile:        strings.TrimSpace(os.Getenv("SLA_RULES_FILE")),
+		DetectionEvery: detectionEvery,
+		Baseline:       time.Duration(baselineMinutes) * time.Minute,
+		GroupingWindow: grouping,
+		Cooldown:       cooldown,
 	}
 	if cfg.ListenAddr == "" {
 		return History{}, fmt.Errorf("LISTEN_ADDR must not be empty")
@@ -167,6 +213,14 @@ func envOr(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func parseInteger(raw string) (int, error) {
+	var value int
+	if _, err := fmt.Sscanf(strings.TrimSpace(raw), "%d", &value); err != nil {
+		return 0, fmt.Errorf("expected an integer, got %q", raw)
+	}
+	return value, nil
 }
 
 func parseWindow(raw string) (time.Duration, error) {

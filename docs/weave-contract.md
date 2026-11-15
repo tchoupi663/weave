@@ -214,7 +214,11 @@ HTTP 200 while that process is alive. `GET /api/health` is served by
 `status` is `degraded` when any dependency is unavailable or degraded. The
 legacy fields `hubble_connected` and `observed_flows` are preserved. A history
 outage does not stop the live topology; it produces recording gaps reported by
-`weave-live`. Liveness probes never depend on another service.
+`weave-live`. Liveness probes never depend on another service. When history
+reports detection status, the aggregate adds `detection_enabled`,
+`rules_loaded`, `rule_pack_version`, `alerts_created`, `incidents_created`,
+`detection_suppressed_gaps`, `detection_evaluations`, and
+`last_detection_evaluation`.
 
 ### `POST /api/incidents`
 
@@ -245,6 +249,42 @@ updated Incident.
 
 Recomputes evidence from the stored window and returns the updated Incident.
 This is the normal action after history is backfilled.
+
+### Detected incidents and Alerts
+
+SLA-driven detection runs inside `weave-history`. A sustained breach of a
+declared SLA rule creates an Alert and, for the first Alert of a group, an
+incident with `origin` `detection`. Manual incidents omit `origin` and
+`trigger`; their JSON shape and evidence are unchanged.
+
+```json
+{
+  "origin": "detection",
+  "trigger": {
+    "rule_id": "catalog-products-5xx",
+    "rule_version": "target-app-v1",
+    "scope": {"kind": "route", "method": "GET", "path": "/api/products"},
+    "metric": "error_rate_5xx",
+    "observed": 1.0,
+    "threshold": 0.01,
+    "breach_bucket": "2026-11-15T14:04:50Z",
+    "detected_at": "2026-11-15T14:05:17Z"
+  }
+}
+```
+
+`GET /api/incidents/{id}/alerts` returns the Alerts grouped into the incident.
+An empty list is `{"alerts":[]}`; an unknown incident returns 404.
+
+### `GET /api/metrics/edges` and `GET /api/metrics/routes`
+
+Range queries over the persisted edge and route buckets, used by the Agent
+tools and the benchmark. `from` and `to` are RFC3339 and required; `bucket` is
+`5s` (default) or `1m` for edges, and `5s` for routes. Filters are additive
+`edge_id`, `method`, and `path` query parameters. Responses are
+`{"bucket_seconds":5,"from":"...","to":"...","rows":[...]}`; rows are `[]`
+when empty, never `null`. Invalid timestamps, `from >= to`, an unknown bucket,
+or route bucket `1m` return 400.
 
 ### `GET /api/incidents/{id}/timeline`
 
@@ -301,6 +341,11 @@ Each service reads only its own variables; the chart sets them.
 | | `WATCH_NAMESPACE` | `weave` | Namespace folded into edge IDs |
 | | `DATA_DIR` | `/data` | SQLite and DuckDB directory |
 | | `FLUSH_GRACE` | `15s` | Delay before a bucket is flushed |
+| | `SLA_RULES_FILE` | empty | SLA rule pack; empty disables detection |
+| | `DETECTION_INTERVAL` | `5s` | Rule evaluation cadence |
+| | `BASELINE_MINUTES` | `15` | Evidence baseline for new incidents |
+| | `GROUPING_WINDOW` | `2m` | Window for joining Alerts into one Incident |
+| | `COOLDOWN` | `5m` | Suppression window after a detected Incident closes |
 | `weave-inventory` | `LISTEN_ADDR` | `:8080` | HTTP listen address |
 | | `WATCH_NAMESPACE` | `weave` | Namespace used to filter declared workloads |
 | | `DATA_DIR` | `/data` | SQLite directory |

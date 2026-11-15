@@ -1,0 +1,58 @@
+# Weave SLA rules for the local Target App.
+# Evaluated by weave-history every DETECTION_INTERVAL seconds over flushed 5s buckets.
+version: target-app-v1
+rules:
+  - id: catalog-products-5xx
+    description: Catalog product list availability
+    severity: critical
+    scope:
+      kind: route
+      method: GET
+      path: /api/products
+    metric: error_rate_5xx
+    threshold: 0.01
+    window_seconds: 60
+    min_requests: 10
+    sustain_evaluations: 2
+    clear_evaluations: 12
+
+  - id: auth-login-p95
+    description: Login latency
+    severity: warning
+    scope:
+      kind: edge
+      edge_id: workload:weave/gateway->workload:weave/auth:8081
+    metric: p95_latency_ms
+    threshold: 300
+    window_seconds: 60
+    min_requests: 5
+    sustain_evaluations: 2
+    clear_evaluations: 12
+
+  - id: payments-5xx
+    description: Payment availability
+    severity: critical
+    scope:
+      kind: route
+      method: POST
+      path: /api/payments
+    metric: error_rate_5xx
+    threshold: 0.01
+    window_seconds: 60
+    min_requests: 3
+    sustain_evaluations: 2
+    clear_evaluations: 12
+
+  - id: orders-5xx
+    description: Order availability
+    severity: critical
+    scope:
+      kind: route
+      method: POST
+      path: /api/orders
+    metric: error_rate_5xx
+    threshold: 0.01
+    window_seconds: 60
+    min_requests: 3
+    sustain_evaluations: 2
+    clear_evaluations: 12

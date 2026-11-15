@@ -37,6 +37,11 @@ history:
   config:
     watchNamespace: weave
     flushGrace: 15s
+    slaRulesFile: /etc/weave/slas.yaml
+    detectionInterval: 5s
+    baselineMinutes: "15"
+    groupingWindow: 2m
+    cooldown: 5m
   persistence:
     create: true
     name: weave-data

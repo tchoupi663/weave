@@ -169,8 +169,20 @@ _Avoid_: drift, history.
 Change in edge telemetry over time, including traffic, errors, and latency.
 _Avoid_: metrics history, monitoring.
 
+**SLA Rule**:
+A declared service-level objective for observable traffic on a Route or Edge, such as an error-rate ceiling or a p95 latency ceiling over a window. Weave evaluates SLA Rules to detect Incidents. It is not a legal contract and not the evidence anomaly threshold.
+_Avoid_: alarm, threshold, alert rule.
+
+**Alert**:
+A detection event: an SLA Rule has been breached long enough to be actionable. Alerts are grouped into one Incident; an Alert is not an Incident and not a Root Cause.
+_Avoid_: alarm, incident, error.
+
+**Detection**:
+The act of evaluating SLA Rules over recorded traffic to produce Alerts and group them into an Incident. Detection is not localization: it says an Incident exists, not where it started.
+_Avoid_: anomaly detection, monitoring, diagnosis.
+
 **Incident**:
-A persisted, time-bounded investigation started by an Operator, with a symptom, optional structured scope, evidence, status, and notes. It is not an alert or an anomaly.
+A persisted, time-bounded investigation of a symptom, started by an Operator for replay or automatically when grouped Alerts breach an SLA Rule. It has a window, status, evidence, and notes; it is the investigation, never the Alert itself.
 _Avoid_: accident, outage, alert.
 
 **Incident View**:
@@ -225,8 +237,16 @@ _Avoid_: culprit, cause, failure.
 The connected set of Suspect nodes and edges around the earliest Onset. It is the default Incident view and a bounded place to investigate, not a causal claim.
 _Avoid_: root cause, blast radius, incident graph.
 
+**Root Cause**:
+The component or condition whose failure produced an Incident's symptoms, established by a Fault Scenario's ground truth or the Operator's judgement. It is what an investigation seeks; the Suspect Region only contains candidates.
+_Avoid_: culprit, suspect, suspect region.
+
+**Diagnosis**:
+An Agent's structured root-cause hypothesis for an Incident: the Root Cause, the failing Route or Edge, a failure mode, evidence references, and a confidence. A Diagnosis is not an Incident, an Alert, or a remediation.
+_Avoid_: verdict, answer, report.
+
 **Fault Scenario**:
-A reproducible injected failure with a known ground truth, used to evaluate localization and local development.
+A reproducible injected failure with a known ground-truth Root Cause, expected affected Route or Edge, failure mode, and expected Suspect Region, used to evaluate localization and benchmark Agents.
 _Avoid_: accident, chaos test, incident.
 
 **Operator**:
@@ -234,5 +254,45 @@ The human using the Weave incident view.
 _Avoid_: user, agent.
 
 **Agent**:
-A software consumer of Weave's read-only API. It shares the Operator's read model; it is not the Operator and does not remediate.
+A software consumer of Weave's read-only API and MCP tool surface that investigates an Incident. It may run locally with a local model; it shares the Operator's read model, is not the Operator, and does not remediate.
 _Avoid_: operator, bot, assistant.
+
+**Agent Run**:
+One execution of an Agent over an Incident. It records the model, the tool surface, whether the Suspect Region was supplied, the Diagnosis, elapsed time, and token use; it is not the Incident or the Diagnosis.
+_Avoid_: investigation, session, job.
+
+**Region-first Handoff**:
+The act of giving an Agent the Suspect Region as its initial world before any tool call, so the investigation starts inside a bounded part of the graph. The Agent is confined to that region until it explicitly expands the scope; the region is a boundary, not a hint.
+_Avoid_: context stuffing, prompt injection.
+
+**MCP Server**:
+A read-only process that exposes tools to an Agent through the Model Context Protocol. Weave's MCP Servers expose production-shaped on-call tools (Kubernetes, metrics, logs) and Weave's incident context; none offers remediation.
+_Avoid_: MCP integration, tool API.
+
+**Region Scope**:
+The set of nodes, edges, routes, workloads, source files, and time context that a confined Agent may read. It starts as the Suspect Region; queries outside it are refused until the Agent performs a Scope Expansion.
+_Avoid_: filter, allowlist.
+
+**Scope Expansion**:
+An explicit, recorded enlargement of the Region Scope to the immediate topology neighbours of one Frontier node. Expansion exists only for the case where in-region evidence shows the Root Cause lies outside the region; it never becomes a full-graph query.
+_Avoid_: traversal, drill-down, pivot.
+
+**Frontier**:
+An in-scope node that has observed topology neighbours outside the Region Scope. A Frontier is the only place from which a Scope Expansion can start; hidden neighbours are not named until the expansion happens.
+_Avoid_: boundary, edge.
+
+**Confined Run**:
+An Agent Run whose Region Scope is enforced by the tool servers: out-of-scope reads are denied, and scope can grow only through recorded Scope Expansions.
+_Avoid_: bounded run, scoped run.
+
+**Unconfined Run**:
+An Agent Run with access to the full observed architecture and all tool data over the incident context. It is the benchmark baseline against which a Confined Run is compared.
+_Avoid_: full run, open run, baseline.
+
+**Target Profile**:
+The target-app-specific bundle used by Detection and the Agent Benchmark: namespace, Argo application, SLA Rules, Fault Scenarios with ground truth, traffic driver, and expected topology. It lets Weave run against a different Target App without changing Weave.
+_Avoid_: config, app config.
+
+**Agent Benchmark**:
+A repeated comparison of Agent Runs across two arms, Confined Run versus Unconfined Run, measuring time to Root Cause, token use, Diagnosis accuracy, and search breadth against Fault Scenario ground truth.
+_Avoid_: evaluation, eval, test.

@@ -71,6 +71,9 @@ func (e *Edge) Handler() http.Handler {
 	mux.Handle("PATCH /api/incidents/{id}", history)
 	mux.Handle("POST /api/incidents/{id}/recompute", history)
 	mux.Handle("GET /api/incidents/{id}/timeline", history)
+	mux.Handle("GET /api/incidents/{id}/alerts", history)
+	mux.Handle("GET /api/metrics/edges", history)
+	mux.Handle("GET /api/metrics/routes", history)
 
 	mux.Handle("GET /api/changes", inventory)
 
@@ -140,7 +143,7 @@ func (e *Edge) aggregateHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	live := depStatus("live", e.cfg.LiveURL)
-	depStatus("history", e.cfg.HistoryURL)
+	history := depStatus("history", e.cfg.HistoryURL)
 	depStatus("inventory", e.cfg.InventoryURL)
 
 	overall := "ok"
@@ -159,6 +162,17 @@ func (e *Edge) aggregateHealth(w http.ResponseWriter, r *http.Request) {
 			"dropped_observations", "gap_active", "history_connected",
 		} {
 			if value, ok := live[field]; ok {
+				body[field] = value
+			}
+		}
+	}
+	if history != nil {
+		for _, field := range []string{
+			"detection_enabled", "rules_loaded", "rule_pack_version",
+			"alerts_created", "incidents_created", "detection_suppressed_gaps",
+			"detection_evaluations", "last_detection_evaluation",
+		} {
+			if value, ok := history[field]; ok {
 				body[field] = value
 			}
 		}

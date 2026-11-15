@@ -17,6 +17,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const defaultBaseline = 15 * time.Minute
+
 // History owns the durable row store and the analytical metric store. It no
 // longer owns lifecycle or change events: those belong to weave-inventory.
 type History struct {
@@ -25,6 +27,8 @@ type History struct {
 	duck      *sql.DB
 	log       *slog.Logger
 	grace     time.Duration
+	baseline  time.Duration
+	detector  *Detector
 
 	mu               sync.Mutex
 	pending5         map[metricKey]*metricBucket
@@ -66,6 +70,10 @@ func Open(dataDir, namespace string, grace time.Duration, log *slog.Logger) (*Hi
 		sqliteDB.Close()
 		return nil, fmt.Errorf("sqlite schema: %w", err)
 	}
+	if err := ensureIncidentColumns(sqliteDB); err != nil {
+		sqliteDB.Close()
+		return nil, fmt.Errorf("sqlite incident migration: %w", err)
+	}
 
 	duckDB, err := sql.Open("duckdb", filepath.Join(dataDir, "metrics.duckdb"))
 	if err != nil {
@@ -92,8 +100,46 @@ func Open(dataDir, namespace string, grace time.Duration, log *slog.Logger) (*Hi
 		pending1:      make(map[metricKey]*metricBucket),
 		pendingRoutes: make(map[routeKey]*routeBucket),
 		lastSeq:       make(map[string]uint64),
+		baseline:      defaultBaseline,
 	}
 	return h, nil
+}
+
+// ensureIncidentColumns upgrades an existing incidents table created before
+// detection support. New databases already have the columns from sqliteSchema.
+func ensureIncidentColumns(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(incidents)`)
+	if err != nil {
+		return err
+	}
+	columns := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notnull, pk int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &columnType, &notnull, &defaultValue, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	if !columns["origin"] {
+		if _, err := db.Exec(`ALTER TABLE incidents ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'`); err != nil {
+			return err
+		}
+	}
+	if !columns["trigger_json"] {
+		if _, err := db.Exec(`ALTER TABLE incidents ADD COLUMN trigger_json TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func execSchema(db *sql.DB, schema string) error {
@@ -109,10 +155,13 @@ func execSchema(db *sql.DB, schema string) error {
 	return nil
 }
 
-// Start launches flushing and retention.
+// Start launches flushing, retention, and SLA detection when configured.
 func (h *History) Start(ctx context.Context) {
 	go h.flushLoop(ctx)
 	go h.retentionLoop(ctx)
+	if h.detector != nil {
+		go h.detector.run(ctx)
+	}
 }
 
 func (h *History) flushLoop(ctx context.Context) {

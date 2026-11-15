@@ -41,6 +41,9 @@ serves a browser path.
 | `PATCH /api/incidents/{id}` | `weave-history` | Notes and open/closed |
 | `POST /api/incidents/{id}/recompute` | `weave-history` | |
 | `GET /api/incidents/{id}/timeline` | `weave-history` | |
+| `GET /api/incidents/{id}/alerts` | `weave-history` | Alerts grouped into the incident |
+| `GET /api/metrics/edges` | `weave-history` | Edge metric range query |
+| `GET /api/metrics/routes` | `weave-history` | Route metric range query |
 | `GET /api/changes` | `weave-inventory` | |
 | `GET /health`, `GET /api/health` | `weave-api` | Aggregates dependency health |
 | `GET /` and SPA fallback | `weave-api` | Built UI assets baked into the image |

@@ -28,6 +28,9 @@ func New(hist *History, log *slog.Logger) http.Handler {
 	mux.HandleFunc("PATCH /api/incidents/{id}", s.patchIncident)
 	mux.HandleFunc("POST /api/incidents/{id}/recompute", s.recomputeIncident)
 	mux.HandleFunc("GET /api/incidents/{id}/timeline", s.incidentTimeline)
+	mux.HandleFunc("GET /api/incidents/{id}/alerts", s.incidentAlerts)
+	mux.HandleFunc("GET /api/metrics/edges", s.metricsEdges)
+	mux.HandleFunc("GET /api/metrics/routes", s.metricsRoutes)
 	mux.HandleFunc("POST /internal/v1/observations", s.observations)
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /api/health", s.health)
@@ -35,9 +38,18 @@ func New(hist *History, log *slog.Logger) http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
+	status := s.hist.DetectionStatus()
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
-		"status":            "ok",
-		"late_observations": s.hist.LateObservations(),
+		"status":                    "ok",
+		"late_observations":         s.hist.LateObservations(),
+		"detection_enabled":         status.Enabled,
+		"rules_loaded":              status.RulesLoaded,
+		"rule_pack_version":         status.RulePackVersion,
+		"alerts_created":            status.AlertsCreated,
+		"incidents_created":         status.IncidentsCreated,
+		"detection_suppressed_gaps": status.SuppressedGaps,
+		"detection_evaluations":     status.Evaluations,
+		"last_detection_evaluation": status.LastEvaluation,
 	})
 }
 

@@ -35,6 +35,14 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	defer hist.Close()
+	if err := hist.SetBaseline(cfg.Baseline); err != nil {
+		return err
+	}
+	if err := hist.ConfigureDetection(cfg.SLAFile, cfg.DetectionEvery, cfg.GroupingWindow, cfg.Cooldown); err != nil {
+		log.Error("SLA detection disabled", "error", err)
+	} else if cfg.SLAFile != "" {
+		log.Info("SLA detection configured", "file", cfg.SLAFile, "baseline", cfg.Baseline.String())
+	}
 	hist.Start(ctx)
 	metrics5, metrics1, err := hist.Counts(ctx)
 	if err != nil {

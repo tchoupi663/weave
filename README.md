@@ -3,11 +3,8 @@
 </p>
 
 <div align="center">
-    <h1>🧵 Weave</h1>
-    <h3><em>Observe the graph. Replay the incident. Find the suspect region.</em></h3>
-    <p>
-        <img src="docs/images/weave-icon.png" alt="Weave: observed topology across time" width="160">
-    </p>
+    <h1>Weave</h1>
+    <h3><em>Observed topology. Retained history. A bounded suspect region, for AI investigators</em></h3>
 </div>
 
 <p align="center">
@@ -19,14 +16,16 @@
     <img src="https://img.shields.io/badge/process-Spec--Driven%20Development-2ea44f" alt="Spec-Driven Development">
 </p>
 
+<p align="center">
+    <sub>Inspired by <a href="https://arxiv.org/abs/2512.22113">PRAXIS</a> (graph traversal for agentic diagnosis, DSN 2026) and <a href="https://arxiv.org/abs/2604.06448">Prime Video's graph-embedding anomaly detection</a> (FSE 2026). See <a href="#references">References</a>.</sub>
+</p>
+
 Weave is an incident-replay topology app for a Kubernetes application. It
 constructs an observed workload graph from Cilium Hubble L4 flows and Grafana
 Beyla HTTP spans, retains a time-bucketed history, reads the Argo CD desired
 inventory read-only, and turns a manually selected incident window into a
 bounded suspect region.
 
-Weave is not an alerting system and does not claim a root cause. It is an
-operator instrument: the graph and the evidence are the product.
 
 ## Choose your path
 
@@ -335,6 +334,44 @@ Manual:
 - [ADR-0004: L7 observability](docs/adr/0004-l7-observability.md)
 - [ADR-0005: incident replay](docs/adr/0005-incident-replay.md)
 - [ADR-0006: service decomposition](docs/adr/0006-weave-service-decomposition.md)
+
+## References
+
+Two papers shaped Weave's design.
+
+**Graph traversal for agentic diagnosis.** Weave's premise that an agent should
+navigate an explicit graph — service dependencies at one level, code at another
+— rather than search logs blindly comes from this work:
+
+> Shengkun Cui, Rahul Krishna, Saurabh Jha, and Ravishankar K. Iyer.
+> *PRAXIS: Integrating Program Analysis with Observability for Root-Cause
+> Analysis.* arXiv:2512.22113, 2026. Accepted to appear in the 56th Annual
+> IEEE/IFIP International Conference on Dependable Systems and Networks (DSN).
+> [arXiv:2512.22113](https://arxiv.org/abs/2512.22113) ·
+> [doi:10.1109/DSN69566.2026.00021](https://doi.org/10.1109/DSN69566.2026.00021)
+
+PRAXIS models architecture and code as two linked graphs — a service dependency
+graph and a hammock-block program dependence graph — and drives an LLM agent
+through a structured traversal of them. Weave takes the traversal idea and stops
+at the service layer: the observed graph is the whole surface, and the suspect
+region is the output rather than a code-level root cause.
+
+**Architecture snapshots as an incident signal.** Weave's bundled 5-second edge
+metrics and its incident timeline come from this work:
+
+> Srinidhi Madabhushi, Pranesh Vyas, Swathi Vaidyanathan, Mayur Kurup,
+> Elliott Nash, and Yegor Silyutin. *From Load Tests to Live Streams: Graph
+> Embedding-Based Anomaly Detection in Microservice Architectures.*
+> arXiv:2604.06448, 2026. Accepted at FSE 2026 — Industrial Track.
+> [arXiv:2604.06448](https://arxiv.org/abs/2604.06448) ·
+> [Amazon Science](https://www.amazon.science/publications/from-load-tests-to-live-streams-graph-embedding-based-anomaly-detection-in-microservice-architectures)
+
+The Prime Video team takes directed, weighted service graphs at minute-level
+resolution and learns node embeddings so that a live event can be compared
+against a load-test baseline. Weave keeps the snapshot cadence and the
+baseline-versus-window comparison, and uses a deterministic threshold rather
+than an embedding model: no training data, and every flagged edge is
+explainable in the evidence snapshot.
 
 ## Not included
 

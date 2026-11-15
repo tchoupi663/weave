@@ -4,6 +4,7 @@
 - **Date:** 2026-11-13
 - **Context:** Weave incident-response slice
 - **Amends:** ADR-0003 (observed-only truth, no database, host filtering)
+- **Amended by:** ADR-0007 (detected Incidents from SLA rules and Alerts), ADR-0008 (Agent investigation and region confinement)
 
 ## Context
 
