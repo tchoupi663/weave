@@ -12,6 +12,5 @@ spec:
   port: 8081
   method: POST
   path: /api/auth/login
-  delay:
-    latency: "800ms"
+  delay: "800ms"
   duration: "4m"

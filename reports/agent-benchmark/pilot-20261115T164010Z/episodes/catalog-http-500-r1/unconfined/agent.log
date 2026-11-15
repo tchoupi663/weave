@@ -1,0 +1,30 @@
+{
+  "root_cause": {
+    "workload": "catalog",
+    "failure_mode": "bad_deployment"
+  },
+  "affected": {
+    "edge_id": "workload:weave/gateway-\\u003eworkload:weave/catalog:8082",
+    "route": "GET /api/products"
+  },
+  "evidence": [
+    {
+      "source": "kube",
+      "reference": "events",
+      "observation": "Chaos experiment applied to catalog pod at 16:45:11Z coinciding with incident start"
+    },
+    {
+      "source": "metrics",
+      "reference": "weave_route_errors",
+      "observation": "No error data available for the incident window, indicating recording gap"
+    },
+    {
+      "source": "kube",
+      "reference": "deployment status",
+      "observation": "Catalog deployment shows ready:1 but chaos experiment was active during failure window"
+    }
+  ],
+  "confidence": 0.85,
+  "summary": "Chaos experiment triggered on catalog workload at incident start time caused the SLA breach; no error metrics recorded due to recording gap."
+}
+status=completed tokens=97977 tool_calls=20 denials=0 expansions=0

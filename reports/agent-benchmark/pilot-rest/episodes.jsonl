@@ -1,0 +1,2 @@
+{"scenario_id":"auth-login-latency","repetition":1,"incident_id":"e0ef7bf4f5b490740d7daa73","detection_latency_ms":25797,"region_recall":true,"fixture_hash":"8f80d58f2a9e7ab5d0c4c0cacffc926442f646bcacdb64e0e65c695735832c6f","status":"complete"}
+{"scenario_id":"external-payment-outage","repetition":1,"region_recall":false,"status":"failed","notes":"kubectl [get deployment/external -o jsonpath={.spec.replicas}]: exit status 1: Error from server (NotFound): deployments.apps \"external\" not found"}

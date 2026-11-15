@@ -1,0 +1,35 @@
+{
+  "root_cause": {
+    "workload": "payment",
+    "failure_mode": "http_error"
+  },
+  "affected": {
+    "edge_id": "workload:weave/gateway-workload:weave/payment:8084",
+    "route": "POST /api/payments"
+  },
+  "evidence": [
+    {
+      "source": "metrics",
+      "reference": "weave_route_errors",
+      "observation": "15.625% error rate observed for POST /api/payments route during incident window, exceeding 0.01 threshold"
+    },
+    {
+      "source": "kube",
+      "reference": "payment deployment",
+      "observation": "Payment workload shows no recent changes or restarts, indicating runtime failure rather than deployment issue"
+    },
+    {
+      "source": "metrics",
+      "reference": "weave_edge_errors",
+      "observation": "No errors recorded on payment→external edge during incident, suggesting failures originate at payment service itself"
+    },
+    {
+      "source": "logs",
+      "reference": "payment-9f7c549d7-49bkh",
+      "observation": "No log entries found in incident window, consistent with silent 5xx responses from application"
+    }
+  ],
+  "confidence": 0.85,
+  "summary": "Payment service is experiencing runtime HTTP 5xx errors when receiving requests from the gateway for /api/payments endpoint, causing SLA breach on error_rate_5xx metric."
+}
+status=completed tokens=59025 tool_calls=15 denials=0 expansions=0

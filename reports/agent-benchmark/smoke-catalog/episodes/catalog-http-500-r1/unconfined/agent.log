@@ -1,0 +1,35 @@
+{
+  "root_cause": {
+    "workload": "catalog",
+    "failure_mode": "bad_deployment"
+  },
+  "affected": {
+    "edge_id": "workload:weave/gateway-\\u003eworkload:weave/catalog:8082",
+    "route": "GET /api/products"
+  },
+  "evidence": [
+    {
+      "source": "metrics",
+      "reference": "weave_route_errors",
+      "observation": "Error rate spiked to 17.5% on /api/products route during incident window"
+    },
+    {
+      "source": "kube",
+      "reference": "events",
+      "observation": "Chaos experiment applied to catalog-6df6b69b8d-snbl2 pod at 16:20:59Z"
+    },
+    {
+      "source": "logs",
+      "reference": "catalog logs",
+      "observation": "No error logs found in time window, but chaos injection detected"
+    },
+    {
+      "source": "topology",
+      "reference": "edge connections",
+      "observation": "Gateway-to-catalog edge shows 217 connections with 2644 events during incident"
+    }
+  ],
+  "confidence": 0.85,
+  "summary": "Chaos experiment injected into catalog service caused 5xx errors on /api/products route"
+}
+status=completed tokens=77554 tool_calls=12 denials=0 expansions=0

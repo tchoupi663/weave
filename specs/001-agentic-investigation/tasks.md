@@ -147,9 +147,9 @@ description: "Task list for agentic investigation slice"
 - [x] T057 [US3] Add `services/simulator/testdata/agent-benchmark.yaml` with the traffic configuration used by the benchmark (concurrency and duration overridable by the harness).
 - [x] T058 [US3] Implement benchmark fault injectors `services/agent/internal/benchmark/inject.go`: HTTPChaos apply/delete, pod-delete loops for external/postgres, image swap and restore; record fixture hashes and revert evidence.
 - [x] T059 [US3] Implement benchmark episode/matrix orchestration `services/agent/internal/benchmark/matrix.go`: preflight, warm-up, fault injection, incident polling, arm-order balancing, paired runs, cleanup, spacing/baseline checks, and pilot/full modes.
-- [ ] T060 [US3] Implement benchmark scoring and artifacts `services/agent/internal/benchmark/score.go` and `artifacts.go`: diagnosis parsing, ground-truth scoring, region recall, search-breadth derivation, manifest/runs.jsonl/summary JSON and Markdown with environment metadata.
+- [x] T060 [US3] Implement benchmark scoring and artifacts `services/agent/internal/benchmark/score.go` and `artifacts.go`: diagnosis parsing, ground-truth scoring, region recall, search-breadth derivation, manifest/runs.jsonl/summary JSON and Markdown with environment metadata.
 - [x] T061 [US3] Implement `services/agent/cmd/weave-bench/main.go` and `scripts/agent-benchmark.sh` options `--scope-smoke`, `--pilot`, `--full`, `--weave-url`, `--keep-faults`, and background-safe logging.
-- [ ] T062 [US3] Run the pilot (one repetition over three scenarios) end to end from `services/agent/cmd/weave-bench/main.go`, fix fixture/detection/harness defects, and record the pilot artifacts under `reports/agent-benchmark/`.
+- [x] T062 [US3] Run the pilot (one repetition over three scenarios) end to end from `services/agent/cmd/weave-bench/main.go`, fix fixture/detection/harness defects, and record the pilot artifacts under `reports/agent-benchmark/`.
 - [ ] T063 [US3] Run the full matrix as a background job, confirm 30 runs or report the matrix incomplete, and write `docs/agent-benchmark.md` from the recorded result.
 - [ ] T064 [US3] Add a healthy negative-control episode to the harness: no fault for the profile baseline, assert zero new incidents, and record it in the report.
 

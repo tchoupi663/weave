@@ -1,0 +1,67 @@
+{
+  "run_id": "20261115T174520Z-unconfined",
+  "incident_id": "180d7ab47776b71ffa63980e",
+  "arm": "unconfined",
+  "prompt_version": "investigator-v1",
+  "model_name": "qwen3.5:4b",
+  "model_digest": "7f3251fa6878a78a606bcb3c074283306e5ad2ea411a7774a9dd98a4bc7f2d13",
+  "status": "completed",
+  "started_at": "2026-11-15T17:45:20.958714Z",
+  "ended_at": "2026-11-15T17:47:08.960386Z",
+  "duration_ms": 108001,
+  "tokens": {
+    "prompt": 56577,
+    "completion": 2448,
+    "total": 59025
+  },
+  "tool_calls": 15,
+  "tool_payload_bytes": 9178,
+  "search_breadth": {
+    "edges": 1,
+    "pods": 2,
+    "routes": 1,
+    "workloads": 2
+  },
+  "expansions": 0,
+  "denials": 0,
+  "caps": {
+    "max_tool_calls": 20,
+    "max_tokens": 160000,
+    "max_wall": 600000000000
+  },
+  "diagnosis": {
+    "root_cause": {
+      "workload": "payment",
+      "failure_mode": "http_error"
+    },
+    "affected": {
+      "edge_id": "workload:weave/gateway-workload:weave/payment:8084",
+      "route": "POST /api/payments"
+    },
+    "evidence": [
+      {
+        "source": "metrics",
+        "reference": "weave_route_errors",
+        "observation": "15.625% error rate observed for POST /api/payments route during incident window, exceeding 0.01 threshold"
+      },
+      {
+        "source": "kube",
+        "reference": "payment deployment",
+        "observation": "Payment workload shows no recent changes or restarts, indicating runtime failure rather than deployment issue"
+      },
+      {
+        "source": "metrics",
+        "reference": "weave_edge_errors",
+        "observation": "No errors recorded on payment→external edge during incident, suggesting failures originate at payment service itself"
+      },
+      {
+        "source": "logs",
+        "reference": "payment-9f7c549d7-49bkh",
+        "observation": "No log entries found in incident window, consistent with silent 5xx responses from application"
+      }
+    ],
+    "confidence": 0.85,
+    "summary": "Payment service is experiencing runtime HTTP 5xx errors when receiving requests from the gateway for /api/payments endpoint, causing SLA breach on error_rate_5xx metric."
+  },
+  "transcript": "reports/agent-benchmark/pilot-external/episodes/external-payment-outage-r1/unconfined/transcript.jsonl"
+}

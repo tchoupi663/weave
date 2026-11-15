@@ -1,0 +1,66 @@
+{
+  "run_id": "20261115T172635Z-confined",
+  "incident_id": "e0ef7bf4f5b490740d7daa73",
+  "arm": "confined",
+  "prompt_version": "investigator-v1",
+  "model_name": "qwen3.5:4b",
+  "model_digest": "7f3251fa6878a78a606bcb3c074283306e5ad2ea411a7774a9dd98a4bc7f2d13",
+  "status": "completed",
+  "started_at": "2026-11-15T17:26:35.798152Z",
+  "ended_at": "2026-11-15T17:30:36.969327Z",
+  "duration_ms": 241171,
+  "tokens": {
+    "prompt": 141063,
+    "completion": 5164,
+    "total": 146227
+  },
+  "tool_calls": 14,
+  "tool_payload_bytes": 5214,
+  "search_breadth": {
+    "pods": 5,
+    "routes": 1,
+    "workloads": 2
+  },
+  "expansions": 0,
+  "denials": 0,
+  "caps": {
+    "max_tool_calls": 20,
+    "max_tokens": 160000,
+    "max_wall": 600000000000
+  },
+  "diagnosis": {
+    "root_cause": {
+      "workload": "auth",
+      "failure_mode": "dependency_unavailable"
+    },
+    "affected": {
+      "edge_id": "workload:weave/gateway-\u003eworkload:weave/auth:8081",
+      "route": "POST /api/payments"
+    },
+    "evidence": [
+      {
+        "source": "logs",
+        "reference": "gateway-695dbf5dc9-svwdm",
+        "observation": "connection reset by peer when reaching auth:8081 at 17:23:07Z"
+      },
+      {
+        "source": "metrics",
+        "reference": "weave_edge_p95_ms",
+        "observation": "latency spiked from ~6ms to 805.84ms on gateway-\u003eauth edge at 17:23:05Z"
+      },
+      {
+        "source": "kube",
+        "reference": "events",
+        "observation": "failed network restore for auth pod with error 'Cannot find device 9034ac46-578ev1'"
+      },
+      {
+        "source": "metrics",
+        "reference": "weave_route_errors",
+        "observation": "1 error recorded on /api/payments route at 17:23:05Z"
+      }
+    ],
+    "confidence": 0.9,
+    "summary": "Network connectivity failure between gateway and auth pods caused connection resets and high latency, resulting in 5xx errors for payment requests."
+  },
+  "transcript": "reports/agent-benchmark/pilot-rest/episodes/auth-login-latency-r1/confined/transcript.jsonl"
+}

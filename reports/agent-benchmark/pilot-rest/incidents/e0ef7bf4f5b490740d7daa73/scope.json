@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "incident_id": "e0ef7bf4f5b490740d7daa73",
+  "mode": "confined",
+  "time_context": {
+    "start": "2026-11-15T17:18:05Z",
+    "end": "2026-11-15T17:23:15Z"
+  },
+  "initial": {
+    "nodes": [
+      "workload:weave/auth",
+      "workload:weave/frontend",
+      "workload:weave/gateway"
+    ],
+    "edges": [
+      "workload:weave/frontend-\u003eworkload:weave/gateway:8080",
+      "workload:weave/gateway-\u003eworkload:weave/auth:8081"
+    ],
+    "routes": null,
+    "workloads": [
+      "auth",
+      "frontend",
+      "gateway"
+    ],
+    "source_paths": [
+      "services/app/cmd/auth",
+      "services/app/internal/authsvc",
+      "services/app/frontend/src",
+      "services/app/frontend/nginx.conf",
+      "services/app/cmd/gateway",
+      "services/app/internal/gatewaysvc",
+      "services/app/internal/httpx"
+    ]
+  },
+  "current": {
+    "nodes": [
+      "workload:weave/auth",
+      "workload:weave/frontend",
+      "workload:weave/gateway"
+    ],
+    "edges": [
+      "workload:weave/frontend-\u003eworkload:weave/gateway:8080",
+      "workload:weave/gateway-\u003eworkload:weave/auth:8081"
+    ],
+    "routes": null,
+    "workloads": [
+      "auth",
+      "frontend",
+      "gateway"
+    ],
+    "source_paths": [
+      "services/app/cmd/auth",
+      "services/app/internal/authsvc",
+      "services/app/frontend/src",
+      "services/app/frontend/nginx.conf",
+      "services/app/cmd/gateway",
+      "services/app/internal/gatewaysvc",
+      "services/app/internal/httpx"
+    ]
+  },
+  "frontier": [
+    {
+      "node_id": "workload:weave/frontend",
+      "directions": [
+        "upstream"
+      ]
+    },
+    {
+      "node_id": "workload:weave/gateway",
+      "directions": [
+        "downstream"
+      ]
+    }
+  ],
+  "expansions": null,
+  "limits": {
+    "max_expansions": 3,
+    "max_added_nodes": 8
+  },
+  "workload_sources": {
+    "auth": [
+      "services/app/cmd/auth",
+      "services/app/internal/authsvc"
+    ],
+    "catalog": [
+      "services/app/cmd/catalog",
+      "services/app/internal/catalogsvc"
+    ],
+    "external": [
+      "services/app/cmd/external",
+      "services/app/internal/externalsvc"
+    ],
+    "frontend": [
+      "services/app/frontend/src",
+      "services/app/frontend/nginx.conf"
+    ],
+    "gateway": [
+      "services/app/cmd/gateway",
+      "services/app/internal/gatewaysvc",
+      "services/app/internal/httpx"
+    ],
+    "orders": [
+      "services/app/cmd/orders",
+      "services/app/internal/orderssvc"
+    ],
+    "payment": [
+      "services/app/cmd/payment",
+      "services/app/internal/paymentsvc"
+    ]
+  }
+}

@@ -54,7 +54,10 @@ services/app/frontend/node_modules/
 services/app/frontend/dist/
 services/app/bin/
 services/simulator/bin/
-reports/
+reports/*
+!reports/agent-benchmark/
+!reports/agent-benchmark/**
+reports/agent-benchmark/**/*.lock
 coverage.out
 *.test
 .DS_Store

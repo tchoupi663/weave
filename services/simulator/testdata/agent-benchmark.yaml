@@ -3,7 +3,7 @@ run:
   id: agent-benchmark
   seed: 42
   target: https://localhost:8443
-  expected_topology: ../../expected-topology.yaml
+  expected_topology: expected-topology.yaml
   duration: 4h
   concurrency: 50
   ramp: 10s

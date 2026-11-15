@@ -16,6 +16,13 @@ export GOTMPDIR="${GOTMPDIR:-$ROOT/.cache/gotmp}"
 export GOSUMDB="${GOSUMDB:-off}"
 mkdir -p "$ROOT/.cache"
 
+echo "==> Set the benchmark evidence baseline to 5 minutes"
+if command -v helm >/dev/null 2>&1; then
+  helm upgrade weave deploy/charts/weave -n weave-system --reuse-values \
+    --set history.config.baselineMinutes=5 >/dev/null
+  kubectl -n weave-system rollout status deployment/weave-history --timeout=180s >/dev/null
+fi
+
 echo "==> Build local agent and benchmark harness"
 (cd services/agent && go build -o "$AGENT_BIN" ./cmd/weave-agent && go build -o "$BENCH_BIN" ./cmd/weave-bench)
 

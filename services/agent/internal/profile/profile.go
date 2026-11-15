@@ -238,6 +238,10 @@ func (profile *Profile) validateScenario(scenario Scenario) error {
 		if scenario.Injection.Target == "" {
 			return fmt.Errorf("scenario %q: target is required for pod_delete_loop", scenario.ID)
 		}
+	case "scale_zero":
+		if scenario.Injection.Target == "" {
+			return fmt.Errorf("scenario %q: target is required for scale_zero", scenario.ID)
+		}
 	case "image_swap":
 		if scenario.Injection.Target == "" || scenario.Injection.Image == "" {
 			return fmt.Errorf("scenario %q: target and image are required for image_swap", scenario.ID)

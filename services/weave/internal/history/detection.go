@@ -155,6 +155,48 @@ func (h *History) ConfigureDetection(path string, interval, grouping, cooldown t
 		}
 	}
 	h.detector = detector
+	// A detection incident cannot keep its in-memory rule state across a
+	// history restart. Close interrupted incidents at their stored window end
+	// so a restart does not leave a permanently open investigation.
+	if err := h.closeInterruptedDetections(context.Background()); err != nil {
+		h.log.Warn("reconcile interrupted detections", "error", err)
+	}
+	return nil
+}
+
+func (h *History) closeInterruptedDetections(ctx context.Context) error {
+	rows, err := h.sqlite.QueryContext(ctx, `SELECT id, window_end FROM incidents WHERE status = ? AND origin = ?`,
+		IncidentStatusOpen, IncidentOriginDetect)
+	if err != nil {
+		return err
+	}
+	type candidate struct {
+		id  string
+		end string
+	}
+	var candidates []candidate
+	for rows.Next() {
+		var item candidate
+		if err := rows.Scan(&item.id, &item.end); err != nil {
+			rows.Close()
+			return err
+		}
+		candidates = append(candidates, item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, item := range candidates {
+		end, err := time.Parse(time.RFC3339Nano, item.end)
+		if err != nil {
+			continue
+		}
+		if err := h.closeDetectedIncident(ctx, item.id, end); err != nil {
+			h.log.Warn("close interrupted detection", "incident", item.id, "error", err)
+		}
+	}
 	return nil
 }
 

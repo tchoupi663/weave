@@ -36,6 +36,7 @@ type Config struct {
 	RunDir        string
 	PromptVersion string
 	Temperature   float64
+	Think         bool
 	NumCtx        int
 	NumPredict    int
 	MaxToolCalls  int
@@ -58,6 +59,7 @@ func FromEnv() Config {
 		RunDir:        strings.TrimSpace(os.Getenv("WEAVE_RUN_DIR")),
 		PromptVersion: envOr("WEAVE_PROMPT_VERSION", DefaultPromptVersion),
 		Temperature:   envFloat("WEAVE_TEMPERATURE", DefaultTemperature),
+		Think:         envBool("WEAVE_MODEL_THINK", true),
 		NumCtx:        envInt("WEAVE_NUM_CTX", DefaultNumCtx),
 		NumPredict:    envInt("WEAVE_NUM_PREDICT", DefaultNumPredict),
 		MaxToolCalls:  envInt("WEAVE_MAX_TOOL_CALLS", DefaultMaxToolCalls),
@@ -91,6 +93,18 @@ func envInt(key string, fallback int) int {
 		return fallback
 	}
 	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func envBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseBool(raw)
 	if err != nil {
 		return fallback
 	}

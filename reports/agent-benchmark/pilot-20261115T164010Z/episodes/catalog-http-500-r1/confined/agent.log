@@ -1,0 +1,30 @@
+{
+  "root_cause": {
+    "workload": "gateway",
+    "failure_mode": "bad_deployment"
+  },
+  "affected": {
+    "edge_id": "workload:weave/gateway-\u003eworkload:weave/catalog:8082",
+    "route": "GET /api/products"
+  },
+  "evidence": [
+    {
+      "source": "metrics",
+      "reference": "weave_route_errors",
+      "observation": "Both edges show identical error patterns at same timestamps, indicating gateway is generating errors for /api/products route"
+    },
+    {
+      "source": "metrics",
+      "reference": "incident timeline",
+      "observation": "Error spike started at 16:45:10Z on both edges simultaneously with same request counts"
+    },
+    {
+      "source": "topology",
+      "reference": "edge topology",
+      "observation": "Gateway sits between frontend and catalog; identical error patterns across both edges indicates gateway is the source of errors"
+    }
+  ],
+  "confidence": 0.85,
+  "summary": "Gateway workload is generating 5xx errors for /api/products route, evidenced by identical error patterns on both upstream and downstream edges starting at same timestamp"
+}
+status=completed tokens=146701 tool_calls=20 denials=2 expansions=0

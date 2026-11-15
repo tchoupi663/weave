@@ -1,0 +1,81 @@
+{
+  "episodes": [
+    {
+      "scenario_id": "catalog-http-500",
+      "repetition": 1,
+      "incident_id": "f072ad7576a9e0c58a0789e5",
+      "detection_latency_ms": 32268,
+      "region_recall": true,
+      "fixture_hash": "c705de965cf34d072b6aa6c41cfa039b0685986c446193604c61908f3c1ba80f",
+      "status": "complete"
+    },
+    {
+      "scenario_id": "auth-login-latency",
+      "repetition": 1,
+      "region_recall": false,
+      "status": "failed",
+      "notes": "kubectl [apply -f deploy/platform/chaos/fixtures/bench/auth-login-delay.yaml]: exit status 1: Error from server (BadRequest): error when creating \"deploy/platform/chaos/fixtures/bench/auth-login-delay.yaml\": HTTPChaos in version \"v1alpha1\" cannot be handled as a HTTPChaos: strict decoding error: unknown field \"spec.delay.latency\""
+    },
+    {
+      "scenario_id": "external-payment-outage",
+      "repetition": 1,
+      "region_recall": false,
+      "status": "failed",
+      "notes": "no detected incident within 150s"
+    }
+  ],
+  "run_id": "pilot-20261115T164010Z",
+  "runs": [
+    {
+      "scenario_id": "catalog-http-500",
+      "repetition": 1,
+      "incident_id": "f072ad7576a9e0c58a0789e5",
+      "arm": "confined",
+      "run_id": "20261115T164545Z-confined",
+      "status": "completed",
+      "correct": false,
+      "route_match": true,
+      "mode_match": false,
+      "tokens_total": 146701,
+      "tool_calls": 20,
+      "denials": 2,
+      "expansions": 0
+    },
+    {
+      "scenario_id": "catalog-http-500",
+      "repetition": 1,
+      "incident_id": "f072ad7576a9e0c58a0789e5",
+      "arm": "unconfined",
+      "run_id": "20261115T164926Z-unconfined",
+      "status": "completed",
+      "correct": true,
+      "route_match": true,
+      "mode_match": false,
+      "tokens_total": 97977,
+      "tool_calls": 20,
+      "denials": 0,
+      "expansions": 0
+    }
+  ],
+  "stats": {
+    "catalog-http-500": {
+      "confined": {
+        "runs": 1,
+        "correct": 0,
+        "tokens_total": 146701,
+        "tool_calls": 20,
+        "denials": 2,
+        "expansions": 0
+      },
+      "unconfined": {
+        "runs": 1,
+        "correct": 1,
+        "tokens_total": 97977,
+        "tool_calls": 20,
+        "denials": 0,
+        "expansions": 0
+      }
+    }
+  },
+  "status": "complete"
+}

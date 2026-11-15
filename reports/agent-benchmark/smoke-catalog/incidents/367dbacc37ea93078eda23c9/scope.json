@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "incident_id": "367dbacc37ea93078eda23c9",
+  "mode": "confined",
+  "time_context": {
+    "start": "2026-11-15T16:15:55Z",
+    "end": "2026-11-15T16:21:05Z"
+  },
+  "initial": {
+    "nodes": [
+      "workload:weave/catalog",
+      "workload:weave/frontend",
+      "workload:weave/gateway",
+      "workload:weave/orders"
+    ],
+    "edges": [
+      "workload:weave/frontend-\u003eworkload:weave/gateway:8080",
+      "workload:weave/gateway-\u003eworkload:weave/catalog:8082",
+      "workload:weave/gateway-\u003eworkload:weave/orders:8083"
+    ],
+    "routes": null,
+    "workloads": [
+      "catalog",
+      "frontend",
+      "gateway",
+      "orders"
+    ],
+    "source_paths": [
+      "services/app/cmd/catalog",
+      "services/app/internal/catalogsvc",
+      "services/app/frontend/src",
+      "services/app/frontend/nginx.conf",
+      "services/app/cmd/gateway",
+      "services/app/internal/gatewaysvc",
+      "services/app/internal/httpx",
+      "services/app/cmd/orders",
+      "services/app/internal/orderssvc"
+    ]
+  },
+  "current": {
+    "nodes": [
+      "workload:weave/catalog",
+      "workload:weave/frontend",
+      "workload:weave/gateway",
+      "workload:weave/orders"
+    ],
+    "edges": [
+      "workload:weave/frontend-\u003eworkload:weave/gateway:8080",
+      "workload:weave/gateway-\u003eworkload:weave/catalog:8082",
+      "workload:weave/gateway-\u003eworkload:weave/orders:8083"
+    ],
+    "routes": null,
+    "workloads": [
+      "catalog",
+      "frontend",
+      "gateway",
+      "orders"
+    ],
+    "source_paths": [
+      "services/app/cmd/catalog",
+      "services/app/internal/catalogsvc",
+      "services/app/frontend/src",
+      "services/app/frontend/nginx.conf",
+      "services/app/cmd/gateway",
+      "services/app/internal/gatewaysvc",
+      "services/app/internal/httpx",
+      "services/app/cmd/orders",
+      "services/app/internal/orderssvc"
+    ]
+  },
+  "frontier": [
+    {
+      "node_id": "workload:weave/frontend",
+      "directions": [
+        "upstream"
+      ]
+    },
+    {
+      "node_id": "workload:weave/gateway",
+      "directions": [
+        "downstream"
+      ]
+    },
+    {
+      "node_id": "workload:weave/orders",
+      "directions": [
+        "downstream"
+      ]
+    }
+  ],
+  "expansions": null,
+  "limits": {
+    "max_expansions": 3,
+    "max_added_nodes": 8
+  },
+  "workload_sources": {
+    "auth": [
+      "services/app/cmd/auth",
+      "services/app/internal/authsvc"
+    ],
+    "catalog": [
+      "services/app/cmd/catalog",
+      "services/app/internal/catalogsvc"
+    ],
+    "external": [
+      "services/app/cmd/external",
+      "services/app/internal/externalsvc"
+    ],
+    "frontend": [
+      "services/app/frontend/src",
+      "services/app/frontend/nginx.conf"
+    ],
+    "gateway": [
+      "services/app/cmd/gateway",
+      "services/app/internal/gatewaysvc",
+      "services/app/internal/httpx"
+    ],
+    "orders": [
+      "services/app/cmd/orders",
+      "services/app/internal/orderssvc"
+    ],
+    "payment": [
+      "services/app/cmd/payment",
+      "services/app/internal/paymentsvc"
+    ]
+  }
+}

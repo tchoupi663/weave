@@ -1,0 +1,30 @@
+{
+  "root_cause": {
+    "workload": "payment",
+    "failure_mode": "dependency_unavailable"
+  },
+  "affected": {
+    "edge_id": "workload:weave/gateway-\u003eworkload:weave/payment:8084",
+    "route": "POST /api/payments"
+  },
+  "evidence": [
+    {
+      "source": "logs",
+      "reference": "payment-9f7c549d7-49bkh pod logs",
+      "observation": "Repeated connection refused errors to external service at 10.96.22.211:8443 during incident window"
+    },
+    {
+      "source": "metrics",
+      "reference": "error_rate_5xx metric on gateway-\u003epayment edge",
+      "observation": "Error rate spiked to 1.0 (100%) during incident, with 5 out of 5 requests returning 5xx"
+    },
+    {
+      "source": "weave",
+      "reference": "incident topology and timeline",
+      "observation": "Anomaly detected at 2026-11-15T17:42:55Z on gateway-\u003epayment edge with error_rate=1.0"
+    }
+  ],
+  "confidence": 0.9,
+  "summary": "Payment workload failed to connect to external dependency service (external:8443), causing all payment requests to return 5xx errors due to connection refused."
+}
+status=completed tokens=63628 tool_calls=9 denials=0 expansions=0

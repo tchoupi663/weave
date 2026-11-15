@@ -1,0 +1,61 @@
+{
+  "run_id": "20261115T164545Z-confined",
+  "incident_id": "f072ad7576a9e0c58a0789e5",
+  "arm": "confined",
+  "prompt_version": "investigator-v1",
+  "model_name": "qwen3.5:4b",
+  "model_digest": "7f3251fa6878a78a606bcb3c074283306e5ad2ea411a7774a9dd98a4bc7f2d13",
+  "status": "completed",
+  "started_at": "2026-11-15T16:45:45.981035Z",
+  "ended_at": "2026-11-15T16:49:26.567184Z",
+  "duration_ms": 220586,
+  "tokens": {
+    "prompt": 142806,
+    "completion": 3895,
+    "total": 146701
+  },
+  "tool_calls": 20,
+  "tool_payload_bytes": 7092,
+  "search_breadth": {
+    "pods": 4,
+    "routes": 1,
+    "workloads": 5
+  },
+  "expansions": 0,
+  "denials": 2,
+  "caps": {
+    "max_tool_calls": 20,
+    "max_tokens": 160000,
+    "max_wall": 600000000000
+  },
+  "diagnosis": {
+    "root_cause": {
+      "workload": "gateway",
+      "failure_mode": "bad_deployment"
+    },
+    "affected": {
+      "edge_id": "workload:weave/gateway-\u003eworkload:weave/catalog:8082",
+      "route": "GET /api/products"
+    },
+    "evidence": [
+      {
+        "source": "metrics",
+        "reference": "weave_route_errors",
+        "observation": "Both edges show identical error patterns at same timestamps, indicating gateway is generating errors for /api/products route"
+      },
+      {
+        "source": "metrics",
+        "reference": "incident timeline",
+        "observation": "Error spike started at 16:45:10Z on both edges simultaneously with same request counts"
+      },
+      {
+        "source": "topology",
+        "reference": "edge topology",
+        "observation": "Gateway sits between frontend and catalog; identical error patterns across both edges indicates gateway is the source of errors"
+      }
+    ],
+    "confidence": 0.85,
+    "summary": "Gateway workload is generating 5xx errors for /api/products route, evidenced by identical error patterns on both upstream and downstream edges starting at same timestamp"
+  },
+  "transcript": "reports/agent-benchmark/pilot-20261115T164010Z/episodes/catalog-http-500-r1/confined/transcript.jsonl"
+}

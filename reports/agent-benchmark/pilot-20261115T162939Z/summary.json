@@ -1,0 +1,28 @@
+{
+  "episodes": [
+    {
+      "scenario_id": "catalog-http-500",
+      "repetition": 1,
+      "region_recall": false,
+      "status": "failed",
+      "notes": "no detected incident within 150s"
+    },
+    {
+      "scenario_id": "auth-login-latency",
+      "repetition": 1,
+      "region_recall": false,
+      "status": "failed"
+    },
+    {
+      "scenario_id": "external-payment-outage",
+      "repetition": 1,
+      "region_recall": false,
+      "status": "failed",
+      "notes": "Get \"http://127.0.0.1:8090/api/incidents?limit=100\": terminated signal received"
+    }
+  ],
+  "run_id": "pilot-20261115T162939Z",
+  "runs": null,
+  "stats": {},
+  "status": "complete"
+}

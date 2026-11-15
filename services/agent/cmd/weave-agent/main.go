@@ -181,7 +181,7 @@ func runInvestigator(args []string) {
 	}
 	defer manager.Close()
 
-	think := false
+	think := cfg.Think
 	localModel := model.New(model.Config{
 		BaseURL: cfg.OllamaURL, Model: cfg.ModelName, Temperature: cfg.Temperature,
 		NumCtx: cfg.NumCtx, NumPredict: cfg.NumPredict, Think: &think,

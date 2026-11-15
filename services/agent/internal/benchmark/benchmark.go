@@ -35,6 +35,8 @@ type Benchmark struct {
 	profile     *profile.Profile
 	client      *http.Client
 	outDir, dir string
+	episodes    []episode
+	runs        []runRecord
 }
 
 type episode struct {
@@ -43,6 +45,7 @@ type episode struct {
 	IncidentID         string `json:"incident_id,omitempty"`
 	DetectionLatencyMS int64  `json:"detection_latency_ms,omitempty"`
 	RegionRecall       bool   `json:"region_recall"`
+	FixtureHash        string `json:"fixture_hash,omitempty"`
 	Status             string `json:"status"`
 	Notes              string `json:"notes,omitempty"`
 }
@@ -55,6 +58,8 @@ type runRecord struct {
 	RunID      string `json:"run_id"`
 	Status     string `json:"status"`
 	Correct    bool   `json:"correct"`
+	RouteMatch bool   `json:"route_match"`
+	ModeMatch  bool   `json:"mode_match"`
 	Tokens     int    `json:"tokens_total"`
 	ToolCalls  int    `json:"tool_calls"`
 	Denials    int    `json:"denials"`
@@ -150,6 +155,7 @@ func (b *Benchmark) Run(ctx context.Context) error {
 
 func (b *Benchmark) runEpisode(ctx context.Context, scenario profile.Scenario, repetition int) error {
 	ep := episode{ScenarioID: scenario.ID, Repetition: repetition, Status: "failed"}
+	defer func() { b.episodes = append(b.episodes, ep) }()
 	if err := b.ensureClean(ctx); err != nil {
 		ep.Notes = err.Error()
 		return err
@@ -193,16 +199,16 @@ func (b *Benchmark) runEpisode(ctx context.Context, scenario profile.Scenario, r
 			record = runRecord{ScenarioID: scenario.ID, Repetition: repetition, IncidentID: inc.ID, Arm: arm, Status: "failed"}
 		}
 		record.ScenarioID, record.Repetition, record.IncidentID, record.Arm = scenario.ID, repetition, inc.ID, arm
+		b.runs = append(b.runs, record)
 		if err := appendJSONL(filepath.Join(b.dir, "runs.jsonl"), record); err != nil {
 			return err
 		}
 	}
-	_ = hash
+	ep.FixtureHash = hash
 	ep.Status = "complete"
 	if err := sleep(ctx, time.Duration(scenario.RecoverySeconds)*time.Second); err != nil {
 		return err
 	}
-	_ = ep
 	return nil
 }
 
@@ -319,8 +325,10 @@ func (b *Benchmark) runArm(ctx context.Context, scenario profile.Scenario, repet
 		return runRecord{}, err
 	}
 	correct, _, _ := score(scenario.GroundTruth, record.Diagnosis)
+	_, routeMatch, modeMatch := score(scenario.GroundTruth, record.Diagnosis)
 	out := runRecord{ScenarioID: scenario.ID, Repetition: repetition, IncidentID: inc.ID, Arm: arm, RunID: record.RunID,
-		Status: record.Status, Correct: correct, Tokens: record.Tokens.Total, ToolCalls: record.ToolCalls, Denials: record.Denials, Expansions: record.Expansions}
+		Status: record.Status, Correct: correct, RouteMatch: routeMatch, ModeMatch: modeMatch,
+		Tokens: record.Tokens.Total, ToolCalls: record.ToolCalls, Denials: record.Denials, Expansions: record.Expansions}
 	return out, nil
 }
 
@@ -369,6 +377,17 @@ func (b *Benchmark) inject(ctx context.Context, scenario profile.Scenario) (func
 		}()
 		_ = b.kubectl(ctx, "delete", "pod", "-l", "app="+scenario.Injection.Target, "--grace-period=0", "--force")
 		return func() { close(stop) }, "pod_delete_loop:" + scenario.Injection.Target, nil
+	case "scale_zero":
+		original, err := b.kubectlOutput(ctx, "get", scenario.Injection.Target, "-o", "jsonpath={.spec.replicas}")
+		if err != nil {
+			return func() {}, "", err
+		}
+		if err := b.kubectl(ctx, "scale", scenario.Injection.Target, "--replicas=0"); err != nil {
+			return func() {}, "", err
+		}
+		return func() {
+			_ = b.kubectl(context.Background(), "scale", scenario.Injection.Target, "--replicas="+strings.TrimSpace(original))
+		}, "scale_zero:" + scenario.Injection.Target, nil
 	case "image_swap":
 		target := "deployment/" + scenario.Injection.Target
 		original, err := b.kubectlOutput(ctx, "get", target, "-o", "jsonpath={.spec.template.spec.containers[0].image}")
@@ -411,9 +430,15 @@ func (b *Benchmark) incidents(ctx context.Context) ([]incident, error) {
 		return nil, err
 	}
 	var items []struct {
-		ID, Status, Origin                                            string
-		CreatedAt, WindowStart, WindowEnd, BaselineStart, BaselineEnd time.Time
-		Evidence                                                      json.RawMessage
+		ID            string          `json:"id"`
+		Status        string          `json:"status"`
+		Origin        string          `json:"origin"`
+		CreatedAt     time.Time       `json:"created_at"`
+		WindowStart   time.Time       `json:"window_start"`
+		WindowEnd     time.Time       `json:"window_end"`
+		BaselineStart time.Time       `json:"baseline_start"`
+		BaselineEnd   time.Time       `json:"baseline_end"`
+		Evidence      json.RawMessage `json:"evidence"`
 	}
 	if err := json.Unmarshal(raw, &items); err != nil {
 		return nil, err
@@ -476,6 +501,9 @@ func (b *Benchmark) kubectlOutput(ctx context.Context, args ...string) (string, 
 	if b.opts.KubeConfig != "" {
 		base = append(base, "--kubeconfig", b.opts.KubeConfig)
 	}
+	if b.profile != nil && b.profile.Cluster.Namespace != "" {
+		base = append(base, "-n", b.profile.Cluster.Namespace)
+	}
 	out, err := exec.CommandContext(ctx, "kubectl", append(base, args...)...).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("kubectl %v: %w: %s", args, err, strings.TrimSpace(string(out)))
@@ -483,11 +511,77 @@ func (b *Benchmark) kubectlOutput(ctx context.Context, args ...string) (string, 
 	return strings.TrimSpace(string(out)), nil
 }
 func (b *Benchmark) writeManifest(status string) error {
-	return writeJSON(filepath.Join(b.dir, "manifest.json"), map[string]any{"run_id": filepath.Base(b.dir), "status": status, "profile_sha256": b.profile.Hash(), "repetitions": b.opts.Repetitions, "caps": map[string]any{"tokens": b.opts.MaxTokens, "tool_calls": b.opts.MaxToolCalls}})
+	model := envOr("WEAVE_MODEL", "qwen3.5:4b")
+	digest := envOr("WEAVE_MODEL_DIGEST", "7f3251fa6878a78a606bcb3c074283306e5ad2ea411a7774a9dd98a4bc7f2d13")
+	payload := map[string]any{
+		"run_id": filepath.Base(b.dir), "status": status,
+		"profile":  map[string]any{"path": b.opts.ProfilePath, "sha256": b.profile.Hash()},
+		"model":    map[string]any{"name": model, "digest": digest, "temperature": 0, "num_ctx": 32768, "think": envOr("WEAVE_MODEL_THINK", "true")},
+		"caps":     map[string]any{"tool_calls": b.opts.MaxToolCalls, "tokens": b.opts.MaxTokens, "wall_seconds": int(b.opts.MaxWall.Seconds())},
+		"matrix":   map[string]any{"repetitions": b.opts.Repetitions},
+		"episodes": len(b.episodes), "runs": len(b.runs),
+	}
+	return writeJSON(filepath.Join(b.dir, "manifest.json"), payload)
 }
+
 func (b *Benchmark) writeSummary() error {
-	return os.WriteFile(filepath.Join(b.dir, "summary.md"), []byte("# Agent Benchmark\n\nArtifacts are in this directory. See runs.jsonl and manifest.json.\n"), 0o644)
+	for _, ep := range b.episodes {
+		if err := appendJSONL(filepath.Join(b.dir, "episodes.jsonl"), ep); err != nil {
+			return err
+		}
+	}
+	type armStats struct {
+		Runs        int `json:"runs"`
+		Correct     int `json:"correct"`
+		TokensTotal int `json:"tokens_total"`
+		ToolCalls   int `json:"tool_calls"`
+		Denials     int `json:"denials"`
+		Expansions  int `json:"expansions"`
+	}
+	stats := map[string]map[string]*armStats{}
+	for _, run := range b.runs {
+		if stats[run.ScenarioID] == nil {
+			stats[run.ScenarioID] = map[string]*armStats{}
+		}
+		arm := stats[run.ScenarioID][run.Arm]
+		if arm == nil {
+			arm = &armStats{}
+			stats[run.ScenarioID][run.Arm] = arm
+		}
+		arm.Runs++
+		if run.Correct {
+			arm.Correct++
+		}
+		arm.TokensTotal += run.Tokens
+		arm.ToolCalls += run.ToolCalls
+		arm.Denials += run.Denials
+		arm.Expansions += run.Expansions
+	}
+	payload := map[string]any{"run_id": filepath.Base(b.dir), "status": "complete", "episodes": b.episodes, "stats": stats, "runs": b.runs}
+	if err := writeJSON(filepath.Join(b.dir, "summary.json"), payload); err != nil {
+		return err
+	}
+	var builder strings.Builder
+	builder.WriteString("# Agent Benchmark\n\n")
+	builder.WriteString("Model: " + envOr("WEAVE_MODEL", "qwen3.5:4b") + "\n\n")
+	builder.WriteString("| scenario | arm | runs | correct | tokens | tool calls | denials | expansions |\n")
+	builder.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	for scenarioID, arms := range stats {
+		for _, armName := range []string{"confined", "unconfined"} {
+			arm := arms[armName]
+			if arm == nil {
+				continue
+			}
+			builder.WriteString(fmt.Sprintf("| %s | %s | %d | %d | %d | %d | %d | %d |\n", scenarioID, armName, arm.Runs, arm.Correct, arm.TokensTotal, arm.ToolCalls, arm.Denials, arm.Expansions))
+		}
+	}
+	builder.WriteString("\nEpisodes:\n")
+	for _, episode := range b.episodes {
+		builder.WriteString(fmt.Sprintf("- %s r%d: %s incident=%s region_recall=%t\n", episode.ScenarioID, episode.Repetition, episode.Status, episode.IncidentID, episode.RegionRecall))
+	}
+	return os.WriteFile(filepath.Join(b.dir, "summary.md"), []byte(builder.String()), 0o644)
 }
+
 func writeJSON(path string, value any) error {
 	raw, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
@@ -560,4 +654,11 @@ func (b *Benchmark) scenarioIndex(id string) int {
 		}
 	}
 	return 0
+}
+
+func envOr(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
 }

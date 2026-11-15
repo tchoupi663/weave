@@ -1,0 +1,40 @@
+{
+  "root_cause": {
+    "workload": "catalog",
+    "failure_mode": "http_error"
+  },
+  "affected": {
+    "edge_id": "workload:weave/gateway-\u003eworkload:weave/catalog:8082",
+    "route": "GET /api/products"
+  },
+  "evidence": [
+    {
+      "source": "metrics",
+      "reference": "incident edge metrics",
+      "observation": "32 out of 109 requests returned 5xx errors on gateway-\u003ecatalog edge during incident window"
+    },
+    {
+      "source": "metrics",
+      "reference": "baseline comparison",
+      "observation": "error_rate spiked from 0 to 0.294 (29.4%) during incident, baseline was 0"
+    },
+    {
+      "source": "topology",
+      "reference": "edge topology",
+      "observation": "incident originated at gateway-\u003ecatalog edge with 32 5xx errors"
+    },
+    {
+      "source": "logs",
+      "reference": "gateway logs",
+      "observation": "no error entries found in gateway logs during incident window"
+    },
+    {
+      "source": "logs",
+      "reference": "catalog logs",
+      "observation": "no error entries found in catalog logs during incident window"
+    }
+  ],
+  "confidence": 0.5,
+  "summary": "The root cause is a 5xx error spike on the gateway-\u003ecatalog edge with 32 errors out of 109 requests. Evidence shows no log entries for errors in either workload during the incident window, suggesting potential internal catalog service issues or network connectivity problems."
+}
+status=completed tokens=110455 tool_calls=9 denials=0 expansions=0

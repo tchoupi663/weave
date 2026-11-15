@@ -3,9 +3,8 @@ description: Postgres is unavailable while orders calls it
 fault_duration_seconds: 240
 recovery_seconds: 120
 injection:
-  mechanism: pod_delete_loop
-  target: postgres
-  delete_interval_seconds: 20
+  mechanism: scale_zero
+  target: statefulset/postgres
 ground_truth:
   root_cause_workloads: [postgres]
   failure_mode: dependency_unavailable
