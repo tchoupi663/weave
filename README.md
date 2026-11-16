@@ -8,12 +8,9 @@
 </div>
 
 <p align="center">
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
-    <img src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" alt="Go 1.26">
-    <img src="https://img.shields.io/badge/Kubernetes-kind-326CE5?logo=kubernetes&logoColor=white" alt="kind">
-    <img src="https://img.shields.io/badge/eBPF-Cilium%20%2B%20Beyla-F96854" alt="eBPF">
-    <img src="https://img.shields.io/badge/storage-DuckDB%20%2B%20SQLite-FFF000?logo=sqlite&logoColor=black" alt="DuckDB and SQLite">
-    <img src="https://img.shields.io/badge/process-Spec--Driven%20Development-2ea44f" alt="Spec-Driven Development">
+    <a href="https://github.com/tchoupi663/weave/stargazers"><img src="https://img.shields.io/github/stars/tchoupi663/weave?style=social" alt="GitHub stars"></a>
+    <a href="https://github.com/tchoupi663/weave/blob/main/LICENSE"><img src="https://img.shields.io/github/license/tchoupi663/weave" alt="License"></a>
+    <a href="https://github.com/tchoupi663/weave/wiki"><img src="https://img.shields.io/badge/docs-wiki-blue" alt="Documentation"></a>
 </p>
 
 <p align="center">
@@ -321,6 +318,7 @@ Manual:
 
 ## Docs
 
+- [Wiki](https://github.com/tchoupi663/weave/wiki)
 - [Run spec](docs/run-spec.md)
 - [Target App contract](docs/target-app-contract.md)
 - [Weave contract](docs/weave-contract.md)
