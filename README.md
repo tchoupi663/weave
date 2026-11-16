@@ -4,7 +4,7 @@
 
 <div align="center">
     <h1>Weave</h1>
-    <h3><em>Observed topology. Retained history. A bounded suspect region, for AI investigators</em></h3>
+    <h3><em>Observed topology. Retained history. A bounded suspect architecture region for AI investigators</em></h3>
 </div>
 
 <p align="center">
@@ -193,9 +193,10 @@ instrument, not history.
 ## Developing with Spec Kit
 
 Weave uses [GitHub Spec Kit](https://github.com/github/spec-kit) for
-Spec-Driven Development. The toolkit is installed in this repository under
-`.dsh/skills/` (nine `/speckit-*` skills) and `.specify/` (templates, scripts,
-constitution).
+Spec-Driven Development. The toolkit is installed locally (`.dsh/skills/` for
+the nine `/speckit-*` skills, `.specify/` for templates, scripts, and the
+constitution) and is not versioned. The specification artifacts it produces
+are, under `docs/specs/`.
 
 The skills are invoked in the agent chat, not the shell, one at a time, and you
 review each artifact before continuing:
@@ -213,9 +214,9 @@ review each artifact before continuing:
 
 Repeat `implement` and `converge` until convergence reports `Converged`.
 
-`.specify/memory/constitution.md` is the project's ground rules. Weave has
-non-obvious rules that a plan can silently violate, so keep them in the
-constitution:
+Your local `.specify/memory/constitution.md` is the project's ground rules.
+Weave has non-obvious rules that a plan can silently violate, so keep them in
+the constitution:
 
 - Nodes and edges exist only because traffic was observed. Declared
   architecture never creates an observed edge.

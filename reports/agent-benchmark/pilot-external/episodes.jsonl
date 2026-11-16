@@ -1,1 +1,0 @@
-{"scenario_id":"external-payment-outage","repetition":1,"incident_id":"180d7ab47776b71ffa63980e","detection_latency_ms":29660,"region_recall":false,"fixture_hash":"scale_zero:deployment/external","status":"complete"}

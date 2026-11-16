@@ -1,2 +1,0 @@
-{"scenario_id":"auth-login-latency","repetition":1,"incident_id":"e0ef7bf4f5b490740d7daa73","arm":"unconfined","run_id":"20261115T172337Z-unconfined","status":"completed","correct":false,"route_match":false,"mode_match":false,"tokens_total":92706,"tool_calls":20,"denials":0,"expansions":0}
-{"scenario_id":"auth-login-latency","repetition":1,"incident_id":"e0ef7bf4f5b490740d7daa73","arm":"confined","run_id":"20261115T172635Z-confined","status":"completed","correct":true,"route_match":false,"mode_match":false,"tokens_total":146227,"tool_calls":14,"denials":0,"expansions":0}

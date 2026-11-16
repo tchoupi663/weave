@@ -1,2 +1,0 @@
-{"scenario_id":"catalog-crashloop","repetition":1,"incident_id":"2539c3c17daa155d41f3200b","arm":"confined","run_id":"20261115T184232Z-confined","status":"completed","correct":false,"route_match":true,"mode_match":false,"tokens_total":73016,"tool_calls":20,"denials":0,"expansions":1}
-{"scenario_id":"catalog-crashloop","repetition":1,"incident_id":"2539c3c17daa155d41f3200b","arm":"unconfined","run_id":"20261115T184524Z-unconfined","status":"completed","correct":true,"route_match":true,"mode_match":false,"tokens_total":95381,"tool_calls":19,"denials":0,"expansions":0}

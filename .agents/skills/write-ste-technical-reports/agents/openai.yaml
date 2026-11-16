@@ -1,4 +1,0 @@
-interface:
-  display_name: "STE Technical Reports"
-  short_description: "Write clear ASD-STE100 informed reports"
-  default_prompt: "Use $write-ste-technical-reports to draft or review this technical report in clear English."
